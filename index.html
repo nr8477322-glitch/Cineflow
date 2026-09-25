@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CineFlow</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+body{
+    background:#0b0d12;
+    color:white;
+}
+
+.app{
+    min-height:100vh;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    background:#11141b;
+    border-right:1px solid #252936;
+    padding:25px 15px;
+    position:fixed;
+    height:100vh;
+}
+
+.logo{
+    font-size:25px;
+    font-weight:bold;
+    margin-bottom:35px;
+}
+
+.logo span{
+    color:#e50914;
+}
+
+.menu button{
+    width:100%;
+    background:none;
+    border:none;
+    color:#aeb3c2;
+    padding:14px;
+    text-align:left;
+    border-radius:10px;
+    margin-bottom:7px;
+    cursor:pointer;
+    font-size:15px;
+}
+
+.menu button:hover,
+.menu button.active{
+    background:#e50914;
+    color:white;
+}
+
+/* CONTENU */
+.main{
+    margin-left:230px;
+    width:calc(100% - 230px);
+    padding:25px;
+}
+
+.topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:25px;
+}
+
+.search{
+    background:#171a22;
+    border:1px solid #292d38;
+    padding:12px 16px;
+    border-radius:12px;
+    color:white;
+    width:280px;
+    outline:none;
+}
+
+.profile{
+    background:#171a22;
+    padding:10px 15px;
+    border-radius:12px;
+}
+
+/* HERO */
+.hero{
+    background:linear-gradient(135deg,#191d27,#11141b);
+    border:1px solid #292d38;
+    border-radius:20px;
+    padding:30px;
+    margin-bottom:25px;
+}
+
+.hero h1{
+    font-size:32px;
+    margin-bottom:10px;
+}
+
+.hero p{
+    color:#aeb3c2;
+    margin-bottom:20px;
+}
+
+.primary{
+    background:#e50914;
+    border:none;
+    color:white;
+    padding:13px 20px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+/* STATS */
+.stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+    margin-bottom:25px;
+}
+
+.stat{
+    background:#11141b;
+    border:1px solid #292d38;
+    border-radius:16px;
+    padding:20px;
+}
+
+.stat small{
+    color:#8f95a5;
+}
+
+.stat h2{
+    margin-top:10px;
+}
+
+/* SECTIONS */
+.section{
+    display:none;
+}
+
+.section.active{
+    display:block;
+}
+
+.section-title{
+    margin-bottom:15px;
+}
+
+/* VIDEOS */
+.video-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:18px;
+}
+
+.video{
+    background:#11141b;
+    border:1px solid #292d38;
+    border-radius:15px;
+    overflow:hidden;
+}
+
+.thumbnail{
+    height:150px;
+    background:linear-gradient(135deg,#272b36,#151820);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:45px;
+}
+
+.video-info{
+    padding:15px;
+}
+
+.video-info p{
+    color:#8f95a5;
+    margin-top:7px;
+    font-size:13px;
+}
+
+/* PLANNING */
+.plan{
+    background:#11141b;
+    border:1px solid #292d38;
+    border-radius:15px;
+    padding:20px;
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.badge{
+    background:#202530;
+    padding:7px 10px;
+    border-radius:8px;
+    font-size:12px;
+}
+
+/* RAPPORT */
+.report{
+    background:#11141b;
+    border:1px solid #292d38;
+    border-radius:18px;
+    padding:25px;
+}
+
+.report-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:15px;
+    margin:20px 0;
+}
+
+.report-card{
+    background:#181b23;
+    border-radius:12px;
+    padding:18px;
+}
+
+.report-card span{
+    color:#8f95a5;
+    font-size:13px;
+}
+
+.report-card strong{
+    display:block;
+    font-size:25px;
+    margin-top:8px;
+}
+
+/* RESPONSIVE */
+@media(max-width:800px){
+
+    .sidebar{
+        width:70px;
+        padding:15px 8px;
+    }
+
+    .logo{
+        font-size:18px;
+        text-align:center;
+    }
+
+    .logo span{
+        display:none;
+    }
+
+    .menu button{
+        font-size:0;
+        text-align:center;
+    }
+
+    .menu button::first-letter{
+        font-size:20px;
+    }
+
+    .main{
+        margin-left:70px;
+        width:calc(100% - 70px);
+        padding:15px;
+    }
+
+    .topbar{
+        gap:10px;
+    }
+
+    .search{
+        width:60%;
+    }
+
+    .stats{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .video-grid{
+        grid-template-columns:1fr;
+    }
+
+    .hero h1{
+        font-size:25px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<!-- MENU -->
+<aside class="sidebar">
+
+    <div class="logo">
+        🎬 Cine<span>Flow</span>
+    </div>
+
+    <div class="menu">
+        <button class="active" onclick="showSection('dashboard',this)">🏠 Accueil</button>
+        <button onclick="showSection('videos',this)">🎬 Vidéos</button>
+        <button onclick="showSection('planning',this)">📅 Planning</button>
+        <button onclick="showSection('stats',this)">📊 Statistiques</button>
+        <button onclick="showSection('reports',this)">📋 Rapports</button>
+        <button onclick="showSection('settings',this)">⚙️ Paramètres</button>
+    </div>
+
+</aside>
+
+
+<main class="main">
+
+<!-- TOPBAR -->
+<div class="topbar">
+
+    <input
+        class="search"
+        type="text"
+        placeholder="🔎 Rechercher..."
+    >
+
+    <div class="profile">
+        👤 Mon espace
+    </div>
+
+</div>
+
+
+<!-- ACCUEIL -->
+<section id="dashboard" class="section active">
+
+    <div class="hero">
+
+        <h1>Bienvenue sur CineFlow 👋</h1>
+
+        <p>
+            Organise, planifie et analyse ton contenu vidéo
+            depuis un seul espace.
+        </p>
+
+        <button class="primary" onclick="showSection('videos')">
+            + Ajouter une vidéo
+        </button>
+
+    </div>
+
+
+    <div class="stats">
+
+        <div class="stat">
+            <small>Vidéos publiées</small>
+            <h2 id="videoCount">24</h2>
+        </div>
+
+        <div class="stat">
+            <small>Vues</small>
+            <h2>18 540</h2>
+        </div>
+
+        <div class="stat">
+            <small>J'aime</small>
+            <h2>2 840</h2>
+        </div>
+
+        <div class="stat">
+            <small>Commentaires</small>
+            <h2>436</h2>
+        </div>
+
+    </div>
+
+
+    <h2 class="section-title">🔥 Tes dernières vidéos</h2>
+
+    <div class="video-grid">
+
+        <div class="video">
+            <div class="thumbnail">🎥</div>
+            <div class="video-info">
+                <strong>Ma nouvelle vidéo</strong>
+                <p>4 820 vues • 520 ❤️</p>
+            </div>
+        </div>
+
+        <div class="video">
+            <div class="thumbnail">🎬</div>
+            <div class="video-info">
+                <strong>Les coulisses</strong>
+                <p>3 210 vues • 340 ❤️</p>
+            </div>
+        </div>
+
+        <div class="video">
+            <div class="thumbnail">🍿</div>
+            <div class="video-info">
+                <strong>Top 10 films</strong>
+                <p>2 980 vues • 290 ❤️</p>
+            </div>
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- VIDEOS -->
+<section id="videos" class="section">
+
+    <h1 class="section-title">🎬 Mes vidéos</h1>
+
+    <button class="primary" onclick="addVideo()">
+        + Ajouter une vidéo
+    </button>
+
+    <br><br>
+
+    <div class="video-grid" id="videoList">
+
+        <div class="video">
+            <div class="thumbnail">🎥</div>
+            <div class="video-info">
+                <strong>Ma nouvelle vidéo</strong>
+                <p>Publiée • 4 820 vues</p>
+            </div>
+        </div>
+
+        <div class="video">
+            <div class="thumbnail">🎬</div>
+            <div class="video-info">
+                <strong>Les coulisses</strong>
+                <p>Publiée • 3 210 vues</p>
+            </div>
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- PLANNING -->
+<section id="planning" class="section">
+
+    <h1 class="section-title">📅 Planning</h1>
+
+    <div class="plan">
+        <div>
+            <strong>Lundi</strong>
+            <p>Nouvelle vidéo cinéma</p>
+        </div>
+        <span class="badge">Programmé</span>
+    </div>
+
+    <div class="plan">
+        <div>
+            <strong>Mercredi</strong>
+            <p>Top 10 films</p>
+        </div>
+        <span class="badge">Programmé</span>
+    </div>
+
+    <div class="plan">
+        <div>
+            <strong>Vendredi</strong>
+            <p>Les coulisses</p>
+        </div>
+        <span class="badge">À préparer</span>
+    </div>
+
+</section>
+
+
+<!-- STATISTIQUES -->
+<section id="stats" class="section">
+
+    <h1 class="section-title">📊 Statistiques</h1>
+
+    <div class="stats">
+
+        <div class="stat">
+            <small>Vues cette semaine</small>
+            <h2>5 420</h2>
+        </div>
+
+        <div class="stat">
+            <small>Abonnés gagnés</small>
+            <h2>+184</h2>
+        </div>
+
+        <div class="stat">
+            <small>Taux d'engagement</small>
+            <h2>8,4%</h2>
+        </div>
+
+        <div class="stat">
+            <small>Publications</small>
+            <h2>7</h2>
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- RAPPORTS -->
+<section id="reports" class="section">
+
+    <h1 class="section-title">📋 Rapport mensuel</h1>
+
+    <div class="report">
+
+        <h2>Septembre 2026</h2>
+
+        <p style="color:#8f95a5;margin-top:8px;">
+            Résumé de ton activité du mois.
+        </p>
+
+        <div class="report-grid">
+
+            <div class="report-card">
+                <span>Vidéos publiées</span>
+                <strong>24</strong>
+            </div>
+
+            <div class="report-card">
+                <span>Vues totales</span>
+                <strong>18 540</strong>
+            </div>
+
+            <div class="report-card">
+                <span>J'aime</span>
+                <strong>2 840</strong>
+            </div>
+
+            <div class="report-card">
+                <span>Commentaires</span>
+                <strong>436</strong>
+            </div>
+
+            <div class="report-card">
+                <span>Nouveaux abonnés</span>
+                <strong>+684</strong>
+            </div>
+
+            <div class="report-card">
+                <span>Engagement</span>
+                <strong>8,4%</strong>
+            </div>
+
+        </div>
+
+        <h3>🏆 Vidéo la plus performante</h3>
+
+        <p style="margin-top:10px;">
+            <strong>Top 10 films</strong> — 6 420 vues
+        </p>
+
+        <br>
+
+        <button class="primary" onclick="downloadReport()">
+            📄 Télécharger le rapport
+        </button>
+
+    </div>
+
+</section>
+
+
+<!-- PARAMÈTRES -->
+<section id="settings" class="section">
+
+    <h1 class="section-title">⚙️ Paramètres</h1>
+
+    <div class="report">
+
+        <h3>Compte CineFlow</h3>
+
+        <br>
+
+        <p style="color:#aeb3c2;">
+            Gère ici les préférences de ton espace CineFlow.
+        </p>
+
+        <br>
+
+        <button class="primary">
+            Modifier mon profil
+        </button>
+
+    </div>
+
+</section>
+
+</main>
+</div>
+
+
+<script>
+
+/* NAVIGATION */
+
+function showSection(id, button){
+
+    document.querySelectorAll('.section')
+        .forEach(section => {
+            section.classList.remove('active');
+        });
+
+    document.getElementById(id)
+        .classList.add('active');
+
+    document.querySelectorAll('.menu button')
+        .forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+    if(button){
+        button.classList.add('active');
+    }
+}
+
+
+/* AJOUT VIDÉO */
+
+function addVideo(){
+
+    const title = prompt("Nom de la vidéo :");
+
+    if(!title) return;
+
+    const list = document.getElementById("videoList");
+
+    const video = document.createElement("div");
+
+    video.className = "video";
+
+    video.innerHTML = `
+        <div class="thumbnail">🎥</div>
+        <div class="video-info">
+            <strong>${title}</strong>
+            <p>Nouvelle vidéo • En préparation</p>
+        </div>
+    `;
+
+    list.appendChild(video);
+
+    alert("Vidéo ajoutée à CineFlow 🎬");
+
+}
+
+
+/* RAPPORT */
+
+function downloadReport(){
+
+    const report = `
+CINEFLOW
+RAPPORT MENSUEL — SEPTEMBRE 2026
+
+Vidéos publiées : 24
+Vues : 18 540
+J'aime : 2 840
+Commentaires : 436
+Nouveaux abonnés : +684
+Engagement : 8,4 %
+
+Vidéo la plus performante :
+Top 10 films — 6 420 vues
+`;
+
+    const blob = new Blob([report], {
+        type:"text/plain"
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "rapport-cineflow-septembre-2026.txt";
+
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+</script>
+
+</body>
+              </html>
