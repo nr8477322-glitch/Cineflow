@@ -149,12 +149,3 @@ app.listen(PORT, () => {
   console.log(`Cineflow API démarrée sur le port ${PORT}`);
 });
 
-⚠️ Ne mets toujours pas ta clé Gemini dans le code. Elle reste dans Render.
-
-Après avoir enregistré le fichier sur GitHub, attends que Render affiche Deploy succeeded / Live.
-
-Ensuite ouvre :
-
-"Cineflow" (https://reference-url-citation.invalid/0)
-
-Tu devrais voir ✨ Tester Gemini.
