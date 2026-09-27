@@ -16,7 +16,6 @@ app.get("/", (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>Cineflow</title>
 
   <style>
@@ -183,7 +182,6 @@ app.get("/", (req, res) => {
 
     <section class="hero">
       <h2>Transforme une idée en projet vidéo</h2>
-
       <p>
         Décris ton idée et laisse Gemini préparer le concept et le scénario.
       </p>
@@ -333,7 +331,7 @@ app.post("/api/gemini", async (req, res) => {
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
+      model: "gemini-2.5-flash",
       contents: prompt
     });
 
