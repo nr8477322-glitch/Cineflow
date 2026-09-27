@@ -360,17 +360,9 @@ app.post("/api/gemini", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Impossible de contacter Gemini."
-    });
-
-  }
-
-});
-
+    })
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(
-    \`Cineflow API démarrée sur le port \${PORT}\`
-  );
+  console.log(`Cineflow API démarrée sur le port ${PORT}`);
 });
-
