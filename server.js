@@ -112,10 +112,6 @@ app.get("/", (req, res) => {
       cursor: pointer;
     }
 
-    button:hover {
-      opacity: 0.9;
-    }
-
     button:disabled {
       opacity: 0.5;
       cursor: wait;
@@ -187,6 +183,7 @@ app.get("/", (req, res) => {
 
     <section class="hero">
       <h2>Transforme une idée en projet vidéo</h2>
+
       <p>
         Décris ton idée et laisse Gemini préparer le concept et le scénario.
       </p>
@@ -238,7 +235,6 @@ app.get("/", (req, res) => {
   </main>
 
   <script>
-
     const button = document.getElementById("generateButton");
     const idea = document.getElementById("idea");
     const result = document.getElementById("result");
@@ -268,12 +264,12 @@ app.get("/", (req, res) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            prompt: \`
+            prompt: `
 Tu es le cerveau créatif de Cineflow.
 
 À partir de cette idée :
 
-"\${userIdea}"
+"${userIdea}"
 
 Crée un projet vidéo clair et professionnel.
 
@@ -291,22 +287,18 @@ Donne :
 
 Réponds en français.
 Sois créatif, concret et facile à transformer ensuite en vidéo.
-\`
+`
           })
         });
 
         const data = await response.json();
 
         if (data.success) {
-
           result.className = "result";
           result.textContent = data.response;
-
         } else {
-
           result.className = "result error";
           result.textContent = "❌ " + data.error;
-
         }
 
       } catch (error) {
@@ -320,7 +312,6 @@ Sois créatif, concret et facile à transformer ensuite en vidéo.
       button.disabled = false;
 
     });
-
   </script>
 
 </body>
@@ -335,12 +326,10 @@ app.post("/api/gemini", async (req, res) => {
     const prompt = req.body.prompt;
 
     if (!prompt) {
-
       return res.status(400).json({
         success: false,
         error: "Le prompt est obligatoire."
       });
-
     }
 
     const response = await ai.models.generateContent({
@@ -360,7 +349,12 @@ app.post("/api/gemini", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Impossible de contacter Gemini."
-    })
+    });
+
+  }
+
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
