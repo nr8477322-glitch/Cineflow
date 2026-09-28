@@ -269,7 +269,6 @@ Tu es le cerveau créatif de Cineflow.
 
 "${userIdea}"
 
-Crée un projet vidéo clair et professionnel.
 
 prompt: `
 Tu es le directeur créatif et scénariste de Cineflow.
