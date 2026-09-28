@@ -271,20 +271,59 @@ Tu es le cerveau créatif de Cineflow.
 
 Crée un projet vidéo clair et professionnel.
 
-Donne :
+prompt: `
+Tu es le directeur créatif et scénariste de Cineflow.
 
-1. TITRE
-2. CONCEPT
-3. STYLE VISUEL
-4. PERSONNAGES PRINCIPAUX
-5. SCÉNARIO
-6. DÉCOUPAGE EN 5 SCÈNES
-7. DESCRIPTION DE LA PREMIÈRE SCÈNE
-8. IDÉE POUR UNE MINIATURE
-9. DESCRIPTION COURTE POUR LES RÉSEAUX SOCIAUX
+L'utilisateur veut transformer son idée en une vidéo originale.
 
-Réponds en français.
-Sois créatif, concret et facile à transformer ensuite en vidéo.
+IDÉE DE L'UTILISATEUR :
+"${userIdea}"
+
+Prépare un projet vidéo complet, clair et directement exploitable.
+
+Réponds exactement avec les sections suivantes :
+
+🎬 TITRE
+Propose un titre accrocheur.
+
+💡 CONCEPT
+Explique l'idée de la vidéo en quelques phrases.
+
+🎨 STYLE VISUEL
+Décris l'ambiance, le style artistique, les couleurs, la lumière et le type de réalisation.
+
+👤 PERSONNAGES
+Présente les personnages principaux et leur rôle.
+
+📖 HISTOIRE
+Écris l'histoire complète avec un début, un développement et une conclusion.
+
+🎞️ DÉCOUPAGE EN 5 SCÈNES
+Pour chaque scène indique :
+- Numéro de la scène
+- Lieu
+- Personnages présents
+- Action
+- Dialogue ou narration
+- Ambiance sonore
+- Description visuelle destinée à une future IA vidéo
+
+🖼️ MINIATURE
+Donne une description détaillée d'une miniature attractive.
+
+📱 DESCRIPTION RÉSEAUX SOCIAUX
+Écris une courte description adaptée à une publication vidéo.
+
+#HASHTAGS
+Propose des hashtags pertinents.
+
+IMPORTANT :
+- Réponds en français.
+- Sois créatif et concret.
+- Ne fais pas de résumé trop court.
+- Garde une cohérence entre les personnages et les scènes.
+- Le projet doit pouvoir servir de base à une future génération vidéo.
+- N'utilise pas de contenu protégé provenant directement d'un film, d'une série ou d'une autre œuvre existante.
 `
           })
         });
