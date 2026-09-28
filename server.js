@@ -263,14 +263,6 @@ app.get("/", (req, res) => {
           },
           body: JSON.stringify({
             prompt: `
-Tu es le cerveau créatif de Cineflow.
-
-À partir de cette idée :
-
-"${userIdea}"
-
-
-prompt: `
 Tu es le directeur créatif et scénariste de Cineflow.
 
 L'utilisateur veut transformer son idée en une vidéo originale.
