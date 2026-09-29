@@ -256,8 +256,8 @@ app.get("/", (req, res) => {
 
       try {
 
-        const prompt =
-\`Tu es le directeur créatif et scénariste de Cineflow.
+        const prompt = \`
+Tu es le directeur créatif et scénariste de Cineflow.
 
 L'utilisateur veut transformer son idée en une vidéo originale.
 
