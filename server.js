@@ -256,13 +256,13 @@ app.get("/", (req, res) => {
 
       try {
 
-        const prompt = \`
+        const prompt = `
 Tu es le directeur créatif et scénariste de Cineflow.
 
 L'utilisateur veut transformer son idée en une vidéo originale.
 
 IDÉE DE L'UTILISATEUR :
-"\${userIdea}"
+"${userIdea}"
 
 Prépare un projet vidéo complet, clair et directement exploitable.
 
@@ -309,7 +309,7 @@ IMPORTANT :
 - Garde une cohérence entre les personnages et les scènes.
 - Le projet doit pouvoir servir de base à une future génération vidéo.
 - N'utilise pas de contenu protégé provenant directement d'un film, d'une série ou d'une autre œuvre existante.
-\`;
+`;
 
         const response = await fetch("/api/gemini", {
           method: "POST",
@@ -390,5 +390,5 @@ app.post("/api/gemini", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(\`Cineflow API démarrée sur le port \${PORT}\`);
+  console.log(`Cineflow API démarrée sur le port ${PORT}`);
 });
