@@ -1,4 +1,3 @@
-
 const express = require("express");
 const { GoogleGenAI } = require("@google/genai");
 
@@ -16,7 +15,7 @@ const ai = new GoogleGenAI({
 const MODEL = "gemini-3.8-flash";
 
 // --------------------------------------------------
-// Fonction Gemini avec nouvelle tentative automatique
+// GEMINI AVEC NOUVELLES TENTATIVES AUTOMATIQUES
 // --------------------------------------------------
 
 async function generateWithRetry(contents, attempts = 4) {
@@ -38,7 +37,10 @@ async function generateWithRetry(contents, attempts = 4) {
 
       const message = error?.message || String(error);
 
-      console.error(`Erreur Gemini tentative ${attempt}:`, message);
+      console.error(
+        `Erreur Gemini tentative ${attempt}:`,
+        message
+      );
 
       const isTemporary =
         message.includes("503") ||
@@ -54,10 +56,12 @@ async function generateWithRetry(contents, attempts = 4) {
       const waitTime = attempt * 2500;
 
       console.log(
-        `Gemini temporairement indisponible. Nouvelle tentative dans ${waitTime} ms...`
+        `Nouvelle tentative dans ${waitTime} ms...`
       );
 
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise(resolve =>
+        setTimeout(resolve, waitTime)
+      );
     }
   }
 
@@ -70,191 +74,208 @@ async function generateWithRetry(contents, attempts = 4) {
 // --------------------------------------------------
 
 app.get("/", (req, res) => {
+
   res.send(`
 <!DOCTYPE html>
 <html lang="fr">
 
 <head>
-  <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+<meta charset="UTF-8">
 
-  <meta name="theme-color" content="#0b1020">
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
 
-  <title>Cineflow</title>
+<meta name="theme-color" content="#0b1020">
 
-  <style>
+<title>Cineflow</title>
 
-    * {
-      box-sizing: border-box;
-    }
+<style>
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: #0b1020;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
+* {
+  box-sizing: border-box;
+}
 
-    header {
-      text-align: center;
-      padding: 32px 18px 20px;
-    }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0b1020;
+  color: white;
+  font-family: Arial, sans-serif;
+}
 
-    header h1 {
-      margin: 0;
-      font-size: 38px;
-    }
+header {
+  text-align: center;
+  padding: 32px 18px 20px;
+}
 
-    header p {
-      margin-top: 10px;
-      color: #b9c1d9;
-      font-size: 16px;
-    }
+header h1 {
+  margin: 0;
+  font-size: 38px;
+}
 
-    .container {
-      width: 92%;
-      max-width: 900px;
-      margin: auto;
-      padding-bottom: 50px;
-    }
+header p {
+  margin-top: 10px;
+  color: #b9c1d9;
+  font-size: 16px;
+}
 
-    .card {
-      background: #151c32;
-      border: 1px solid #293452;
-      border-radius: 18px;
-      padding: 22px;
-      margin-top: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-    }
+.container {
+  width: 92%;
+  max-width: 900px;
+  margin: auto;
+  padding-bottom: 50px;
+}
 
-    .card h2 {
-      margin-top: 0;
-      font-size: 22px;
-    }
+.card {
+  background: #151c32;
+  border: 1px solid #293452;
+  border-radius: 18px;
+  padding: 22px;
+  margin-top: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
 
-    .description {
-      color: #b9c1d9;
-      line-height: 1.6;
-    }
+.card h2 {
+  margin-top: 0;
+  font-size: 22px;
+}
 
-    textarea {
-      width: 100%;
-      min-height: 150px;
-      resize: vertical;
+.description {
+  color: #b9c1d9;
+  line-height: 1.6;
+}
 
-      background: #0d1427;
-      color: white;
+textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
 
-      border: 1px solid #34405f;
-      border-radius: 12px;
+  background: #0d1427;
+  color: white;
 
-      padding: 15px;
+  border: 1px solid #34405f;
+  border-radius: 12px;
 
-      font-size: 16px;
-      line-height: 1.5;
+  padding: 15px;
 
-      outline: none;
-    }
+  font-size: 16px;
+  line-height: 1.5;
 
-    textarea:focus {
-      border-color: #6d7cff;
-    }
+  outline: none;
+}
 
-    button {
-      width: 100%;
-      margin-top: 15px;
+textarea:focus {
+  border-color: #6d7cff;
+}
 
-      padding: 15px;
+button {
+  width: 100%;
+  margin-top: 15px;
 
-      border: none;
-      border-radius: 12px;
+  padding: 15px;
 
-      background: #5b6cff;
-      color: white;
+  border: none;
+  border-radius: 12px;
 
-      font-size: 17px;
-      font-weight: bold;
+  background: #5b6cff;
+  color: white;
 
-      cursor: pointer;
-    }
+  font-size: 17px;
+  font-weight: bold;
 
-    button:hover {
-      background: #7180ff;
-    }
+  cursor: pointer;
+}
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
+button:hover {
+  background: #7180ff;
+}
 
-    .test-button {
-      background: #26304d;
-    }
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
 
-    .test-button:hover {
-      background: #34405f;
-    }
+.test-button {
+  background: #26304d;
+}
 
-    .status {
-      margin-top: 15px;
-      padding: 13px;
+.test-button:hover {
+  background: #34405f;
+}
 
-      border-radius: 10px;
+.image-button {
+  background: #8b5cf6;
+}
 
-      background: #0d1427;
+.image-button:hover {
+  background: #9d72ff;
+}
 
-      white-space: pre-wrap;
-    }
+.status {
+  margin-top: 15px;
+  padding: 13px;
 
-    .success {
-      color: #76e6a5;
-    }
+  border-radius: 10px;
 
-    .error {
-      color: #ff8c8c;
-    }
+  background: #0d1427;
 
-    .loading {
-      color: #c4cbff;
-    }
+  white-space: pre-wrap;
+}
 
-    #result {
-      margin-top: 20px;
+.success {
+  color: #76e6a5;
+}
 
-      color: #e7ebf7;
+.error {
+  color: #ff8c8c;
+}
 
-      line-height: 1.7;
+.loading {
+  color: #c4cbff;
+}
 
-      white-space: pre-wrap;
-    }
+#result,
+#imageResult {
+  margin-top: 20px;
 
-    footer {
-      text-align: center;
+  color: #e7ebf7;
 
-      color: #707993;
+  line-height: 1.7;
 
-      padding: 30px 10px;
+  white-space: pre-wrap;
+}
 
-      font-size: 13px;
-    }
+#imageCard {
+  display: none;
+}
 
-  </style>
+footer {
+  text-align: center;
+
+  color: #707993;
+
+  padding: 30px 10px;
+
+  font-size: 13px;
+}
+
+</style>
+
 </head>
 
 <body>
 
+
 <header>
 
-  <h1>🎬 Cineflow</h1>
+<h1>🎬 Cineflow</h1>
 
-  <p>
-    Ton espace de création assistée par intelligence artificielle
-  </p>
+<p>
+Ton espace de création assistée par intelligence artificielle
+</p>
 
 </header>
 
@@ -262,70 +283,112 @@ app.get("/", (req, res) => {
 <div class="container">
 
 
-  <!-- CONNEXION -->
+<!-- CONNEXION GEMINI -->
 
-  <div class="card">
+<div class="card">
 
-    <h2>🔌 Connexion Gemini</h2>
+<h2>🔌 Connexion Gemini</h2>
 
-    <button
-      class="test-button"
-      id="testButton"
-      onclick="testerGemini()"
-    >
-      ✨ Tester Gemini
-    </button>
+<button
+  class="test-button"
+  id="testButton"
+  onclick="testerGemini()"
+>
+✨ Tester Gemini
+</button>
 
-    <div
-      id="testStatus"
-      style="display:none"
-    ></div>
+<div
+  id="testStatus"
+  style="display:none"
+></div>
 
-  </div>
+</div>
 
 
-  <!-- CREATION -->
+<!-- CREATION -->
 
-  <div class="card">
+<div class="card">
 
-    <h2>🎥 Créer une vidéo</h2>
+<h2>🎥 Créer une vidéo</h2>
 
-    <p class="description">
-      Décris simplement ton idée de film, d'animation,
-      d'action, de drama ou de football.
-    </p>
+<p class="description">
+Décris simplement ton idée de film,
+d'animation, d'action, de drama ou de football.
+</p>
 
-    <textarea
-      id="idea"
-      placeholder="Exemple : Un jeune footballeur africain rêve de devenir professionnel malgré les difficultés..."
-    ></textarea>
+<textarea
+  id="idea"
+  placeholder="Exemple : Un jeune footballeur africain rêve de devenir professionnel malgré les difficultés..."
+></textarea>
 
-    <button
-      id="generateButton"
-      onclick="genererProjet()"
-    >
-      🚀 Générer mon projet
-    </button>
+<button
+  id="generateButton"
+  onclick="genererProjet()"
+>
+🚀 Générer mon projet
+</button>
 
-    <div
-      id="status"
-      style="display:none"
-    ></div>
+<div
+  id="status"
+  style="display:none"
+></div>
 
-    <div id="result"></div>
+<div id="result"></div>
 
-  </div>
+</div>
+
+
+<!-- PREPARATION DES IMAGES -->
+
+<div
+  class="card"
+  id="imageCard"
+>
+
+<h2>🎨 Préparer les images</h2>
+
+<p class="description">
+Cineflow transforme ton projet en 5 prompts
+visuels cohérents, prêts à être utilisés par
+un générateur d'images ou de vidéos.
+</p>
+
+<button
+  class="image-button"
+  id="imageButton"
+  onclick="preparerImages()"
+>
+🎨 Préparer les 5 scènes
+</button>
+
+<div
+  id="imageStatus"
+  style="display:none"
+></div>
+
+<div id="imageResult"></div>
+
+</div>
 
 
 </div>
 
 
 <footer>
-  Cineflow — Création assistée par intelligence artificielle
+
+Cineflow — Création assistée par intelligence artificielle
+
 </footer>
 
 
 <script>
+
+let dernierProjet = "";
+
+
+// --------------------------------------------------
+// TEST GEMINI
+// --------------------------------------------------
 
 async function testerGemini() {
 
@@ -344,7 +407,6 @@ async function testerGemini() {
   box.innerText =
     "⏳ Connexion à Gemini...";
 
-
   try {
 
     const response =
@@ -352,7 +414,6 @@ async function testerGemini() {
 
     const data =
       await response.json();
-
 
     if (data.success) {
 
@@ -390,6 +451,10 @@ async function testerGemini() {
 }
 
 
+// --------------------------------------------------
+// GENERER LE PROJET
+// --------------------------------------------------
+
 async function genererProjet() {
 
   const idea =
@@ -403,6 +468,9 @@ async function genererProjet() {
 
   const result =
     document.getElementById("result");
+
+  const imageCard =
+    document.getElementById("imageCard");
 
 
   if (!idea) {
@@ -425,7 +493,6 @@ async function genererProjet() {
   button.innerText =
     "⏳ Cineflow travaille...";
 
-
   status.style.display = "block";
 
   status.className =
@@ -435,8 +502,9 @@ async function genererProjet() {
     "🤖 Gemini prépare ton projet...\\n" +
     "Une nouvelle tentative sera effectuée automatiquement si le serveur est momentanément chargé.";
 
-
   result.innerText = "";
+
+  imageCard.style.display = "none";
 
 
   try {
@@ -471,11 +539,129 @@ async function genererProjet() {
     }
 
 
+    dernierProjet =
+      data.result;
+
+
     status.className =
       "status success";
 
     status.innerText =
       "✅ Projet Cineflow généré !";
+
+
+    result.innerText =
+      data.result;
+
+
+    imageCard.style.display =
+      "block";
+
+
+  } catch (error) {
+
+    status.className =
+      "status error";
+
+    status.innerText =
+      "❌ " + error.message;
+
+  } finally {
+
+    button.disabled = false;
+
+    button.innerText =
+      "🚀 Générer mon projet";
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// PREPARER LES PROMPTS VISUELS
+// --------------------------------------------------
+
+async function preparerImages() {
+
+  const button =
+    document.getElementById("imageButton");
+
+  const status =
+    document.getElementById("imageStatus");
+
+  const result =
+    document.getElementById("imageResult");
+
+
+  if (!dernierProjet) {
+
+    status.style.display = "block";
+
+    status.className =
+      "status error";
+
+    status.innerText =
+      "⚠️ Génère d'abord un projet Cineflow.";
+
+    return;
+
+  }
+
+
+  button.disabled = true;
+
+  button.innerText =
+    "⏳ Préparation des scènes...";
+
+  status.style.display = "block";
+
+  status.className =
+    "status loading";
+
+  status.innerText =
+    "🎨 Gemini prépare les prompts visuels...";
+
+  result.innerText = "";
+
+
+  try {
+
+    const response =
+      await fetch("/api/prepare-images", {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+          project: dernierProjet
+        })
+
+      });
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok || !data.success) {
+
+      throw new Error(
+        data.error ||
+        "Erreur pendant la préparation des images."
+      );
+
+    }
+
+
+    status.className =
+      "status success";
+
+    status.innerText =
+      "✅ Les 5 scènes sont prêtes !";
 
 
     result.innerText =
@@ -495,7 +681,7 @@ async function genererProjet() {
     button.disabled = false;
 
     button.innerText =
-      "🚀 Générer mon projet";
+      "🎨 Préparer les 5 scènes";
 
   }
 
@@ -521,12 +707,9 @@ app.get("/api/test-gemini", async (req, res) => {
     if (!API_KEY) {
 
       return res.status(500).json({
-
         success: false,
-
         error:
           "GEMINI_API_KEY n'est pas configurée sur Render."
-
       });
 
     }
@@ -573,7 +756,7 @@ app.get("/api/test-gemini", async (req, res) => {
 
 
 // --------------------------------------------------
-// GENERATION DU PROJET CINEFLOW
+// GENERATION DU PROJET
 // --------------------------------------------------
 
 app.post("/api/generate", async (req, res) => {
@@ -751,6 +934,134 @@ Sois créatif mais reste cohérent avec l'idée de départ.
 
       error:
         "Gemini est momentanément indisponible après plusieurs tentatives. Réessaie dans quelques instants. Détail : " +
+        message
+
+    });
+
+  }
+
+});
+
+
+// --------------------------------------------------
+// PREPARATION DES IMAGES
+// --------------------------------------------------
+
+app.post("/api/prepare-images", async (req, res) => {
+
+  try {
+
+    if (!API_KEY) {
+
+      return res.status(500).json({
+
+        success: false,
+
+        error:
+          "GEMINI_API_KEY n'est pas configurée sur Render."
+
+      });
+
+    }
+
+
+    const project =
+      typeof req.body.project === "string"
+        ? req.body.project.trim()
+        : "";
+
+
+    if (!project) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Aucun projet Cineflow n'a été fourni."
+
+      });
+
+    }
+
+
+    const prompt = `
+Tu es le directeur artistique de Cineflow.
+
+À partir du projet vidéo ci-dessous, crée exactement
+5 prompts visuels, un pour chacune des 5 scènes.
+
+Les 5 images doivent représenter le même film.
+La cohérence des personnages, des vêtements,
+des lieux, de l'âge et de l'ambiance doit être
+maintenue d'une scène à l'autre.
+
+Réponds en français.
+
+Pour chaque scène, utilise exactement :
+
+🎞️ SCÈNE 1
+PROMPT VISUEL :
+FORMAT :
+CAMÉRA :
+LUMIÈRE :
+AMBIANCE :
+
+Puis fais la même chose pour les scènes 2, 3, 4 et 5.
+
+IMPORTANT :
+- Décris précisément les personnages.
+- Maintiens leur apparence d'une scène à l'autre.
+- Décris le lieu.
+- Décris l'action.
+- Décris la composition de l'image.
+- Utilise un style cinématographique réaliste.
+- Prépare les prompts pour un futur générateur d'images ou de vidéos.
+- Ne crée pas encore les images.
+- Ne change pas l'histoire.
+
+PROJET CINEFLOW :
+${project}
+`;
+
+
+    const response =
+      await generateWithRetry(prompt, 4);
+
+
+    const result =
+      response.text ||
+      "Aucun prompt visuel n'a été généré.";
+
+
+    res.json({
+
+      success: true,
+
+      result: result
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "Erreur préparation images :",
+      error
+    );
+
+
+    const message =
+      error?.message ||
+      "Erreur inconnue.";
+
+
+    res.status(500).json({
+
+      success: false,
+
+      error:
+        "Impossible de préparer les scènes. Détail : " +
         message
 
     });
