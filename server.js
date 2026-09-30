@@ -12,7 +12,7 @@ const ai = new GoogleGenAI({
   apiKey: API_KEY
 });
 
-const MODEL = "gemini-3.8-flash";
+const MODEL = "gemini-3.7-flash";
 
 // --------------------------------------------------
 // GEMINI AVEC NOUVELLES TENTATIVES AUTOMATIQUES
