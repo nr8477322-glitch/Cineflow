@@ -1,3 +1,4 @@
+
 const express = require("express");
 const { GoogleGenAI } = require("@google/genai");
 
@@ -6,53 +7,113 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 
 const ai = new GoogleGenAI({
-  apiKey: GEMINI_API_KEY
+  apiKey: API_KEY
 });
 
+const MODEL = "gemini-3.8-flash";
+
 // --------------------------------------------------
-// PAGE CINEFLOW
+// Fonction Gemini avec nouvelle tentative automatique
+// --------------------------------------------------
+
+async function generateWithRetry(contents, attempts = 4) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      console.log(`Tentative Gemini ${attempt}/${attempts}`);
+
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: contents
+      });
+
+      return response;
+
+    } catch (error) {
+      lastError = error;
+
+      const message = error?.message || String(error);
+
+      console.error(`Erreur Gemini tentative ${attempt}:`, message);
+
+      const isTemporary =
+        message.includes("503") ||
+        message.includes("UNAVAILABLE") ||
+        message.includes("high demand") ||
+        message.includes("429") ||
+        message.includes("RESOURCE_EXHAUSTED");
+
+      if (!isTemporary || attempt === attempts) {
+        throw error;
+      }
+
+      const waitTime = attempt * 2500;
+
+      console.log(
+        `Gemini temporairement indisponible. Nouvelle tentative dans ${waitTime} ms...`
+      );
+
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+
+  throw lastError;
+}
+
+
+// --------------------------------------------------
+// PAGE PRINCIPALE
 // --------------------------------------------------
 
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta name="theme-color" content="#0b1020">
 
   <title>Cineflow</title>
 
   <style>
+
     * {
       box-sizing: border-box;
     }
 
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
+      min-height: 100vh;
       background: #0b1020;
       color: white;
-      min-height: 100vh;
+      font-family: Arial, sans-serif;
     }
 
     header {
-      padding: 30px 20px 20px;
       text-align: center;
+      padding: 32px 18px 20px;
     }
 
     header h1 {
       margin: 0;
-      font-size: 36px;
+      font-size: 38px;
     }
 
     header p {
+      margin-top: 10px;
       color: #b9c1d9;
       font-size: 16px;
-      margin-top: 10px;
     }
 
     .container {
@@ -76,16 +137,27 @@ app.get("/", (req, res) => {
       font-size: 22px;
     }
 
+    .description {
+      color: #b9c1d9;
+      line-height: 1.6;
+    }
+
     textarea {
       width: 100%;
-      min-height: 130px;
+      min-height: 150px;
       resize: vertical;
-      border: 1px solid #34405f;
-      border-radius: 12px;
+
       background: #0d1427;
       color: white;
+
+      border: 1px solid #34405f;
+      border-radius: 12px;
+
       padding: 15px;
+
       font-size: 16px;
+      line-height: 1.5;
+
       outline: none;
     }
 
@@ -96,13 +168,18 @@ app.get("/", (req, res) => {
     button {
       width: 100%;
       margin-top: 15px;
+
       padding: 15px;
+
       border: none;
       border-radius: 12px;
+
       background: #5b6cff;
       color: white;
+
       font-size: 17px;
       font-weight: bold;
+
       cursor: pointer;
     }
 
@@ -123,23 +200,15 @@ app.get("/", (req, res) => {
       background: #34405f;
     }
 
-    #status {
+    .status {
       margin-top: 15px;
-      padding: 12px;
+      padding: 13px;
+
       border-radius: 10px;
-      display: none;
+
       background: #0d1427;
-    }
 
-    #result {
-      margin-top: 20px;
       white-space: pre-wrap;
-      line-height: 1.7;
-      color: #e7ebf7;
-    }
-
-    .loading {
-      color: #c4cbff;
     }
 
     .success {
@@ -150,51 +219,80 @@ app.get("/", (req, res) => {
       color: #ff8c8c;
     }
 
-    .section-title {
-      color: #aeb8ff;
-      margin-top: 25px;
-      margin-bottom: 8px;
+    .loading {
+      color: #c4cbff;
+    }
+
+    #result {
+      margin-top: 20px;
+
+      color: #e7ebf7;
+
+      line-height: 1.7;
+
+      white-space: pre-wrap;
     }
 
     footer {
       text-align: center;
+
       color: #707993;
+
       padding: 30px 10px;
+
       font-size: 13px;
     }
+
   </style>
 </head>
 
 <body>
 
 <header>
+
   <h1>🎬 Cineflow</h1>
-  <p>Ton espace de création assistée par intelligence artificielle</p>
+
+  <p>
+    Ton espace de création assistée par intelligence artificielle
+  </p>
+
 </header>
+
 
 <div class="container">
 
-  <!-- TEST GEMINI -->
+
+  <!-- CONNEXION -->
 
   <div class="card">
+
     <h2>🔌 Connexion Gemini</h2>
 
-    <button class="test-button" onclick="testerGemini()">
+    <button
+      class="test-button"
+      id="testButton"
+      onclick="testerGemini()"
+    >
       ✨ Tester Gemini
     </button>
 
-    <div id="testStatus"></div>
+    <div
+      id="testStatus"
+      style="display:none"
+    ></div>
+
   </div>
 
-  <!-- GENERATEUR -->
+
+  <!-- CREATION -->
 
   <div class="card">
 
     <h2>🎥 Créer une vidéo</h2>
 
-    <p>
-      Décris simplement ton idée de film, d'animation, d'action,
-      de drama ou de football.
+    <p class="description">
+      Décris simplement ton idée de film, d'animation,
+      d'action, de drama ou de football.
     </p>
 
     <textarea
@@ -202,17 +300,25 @@ app.get("/", (req, res) => {
       placeholder="Exemple : Un jeune footballeur africain rêve de devenir professionnel malgré les difficultés..."
     ></textarea>
 
-    <button id="generateButton" onclick="genererProjet()">
+    <button
+      id="generateButton"
+      onclick="genererProjet()"
+    >
       🚀 Générer mon projet
     </button>
 
-    <div id="status"></div>
+    <div
+      id="status"
+      style="display:none"
+    ></div>
 
     <div id="result"></div>
 
   </div>
 
+
 </div>
+
 
 <footer>
   Cineflow — Création assistée par intelligence artificielle
@@ -223,116 +329,163 @@ app.get("/", (req, res) => {
 
 async function testerGemini() {
 
-  const box = document.getElementById("testStatus");
+  const button =
+    document.getElementById("testButton");
+
+  const box =
+    document.getElementById("testStatus");
+
+  button.disabled = true;
 
   box.style.display = "block";
-  box.className = "loading";
-  box.innerText = "⏳ Connexion à Gemini...";
+
+  box.className = "status loading";
+
+  box.innerText =
+    "⏳ Connexion à Gemini...";
+
 
   try {
 
-    const response = await fetch("/api/test-gemini");
+    const response =
+      await fetch("/api/test-gemini");
 
-    const data = await response.json();
+    const data =
+      await response.json();
+
 
     if (data.success) {
 
-      box.className = "success";
+      box.className =
+        "status success";
 
       box.innerText =
-        "✅ Gemini répond :\\n\\n" + data.message;
+        "✅ Gemini répond :\\n\\n" +
+        data.message;
 
     } else {
 
-      box.className = "error";
+      box.className =
+        "status error";
 
       box.innerText =
-        "❌ Erreur : " + data.error;
+        "❌ " + data.error;
+
     }
 
   } catch (error) {
 
-    box.className = "error";
+    box.className =
+      "status error";
 
     box.innerText =
       "❌ Impossible de contacter Cineflow.";
+
+  } finally {
+
+    button.disabled = false;
+
   }
+
 }
 
 
 async function genererProjet() {
 
-  const idea = document.getElementById("idea").value.trim();
+  const idea =
+    document.getElementById("idea").value.trim();
 
-  const button = document.getElementById("generateButton");
+  const button =
+    document.getElementById("generateButton");
 
-  const status = document.getElementById("status");
+  const status =
+    document.getElementById("status");
 
-  const result = document.getElementById("result");
+  const result =
+    document.getElementById("result");
 
 
   if (!idea) {
 
     status.style.display = "block";
-    status.className = "error";
+
+    status.className =
+      "status error";
+
     status.innerText =
       "⚠️ Décris d'abord ton idée de vidéo.";
 
     return;
+
   }
 
 
   button.disabled = true;
-  button.innerText = "⏳ Cineflow crée ton projet...";
+
+  button.innerText =
+    "⏳ Cineflow travaille...";
+
 
   status.style.display = "block";
-  status.className = "loading";
+
+  status.className =
+    "status loading";
+
   status.innerText =
-    "🤖 Gemini est en train de développer ton idée...";
+    "🤖 Gemini prépare ton projet...\\n" +
+    "Une nouvelle tentative sera effectuée automatiquement si le serveur est momentanément chargé.";
+
 
   result.innerText = "";
 
 
   try {
 
-    const response = await fetch("/api/generate", {
+    const response =
+      await fetch("/api/generate", {
 
-      method: "POST",
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json"
-      },
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-      body: JSON.stringify({
-        idea: idea
-      })
+        body: JSON.stringify({
+          idea: idea
+        })
 
-    });
+      });
 
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
 
     if (!response.ok || !data.success) {
 
       throw new Error(
-        data.error || "Erreur pendant la génération."
+        data.error ||
+        "Erreur pendant la génération."
       );
 
     }
 
 
-    status.className = "success";
+    status.className =
+      "status success";
 
     status.innerText =
-      "✅ Projet Cineflow généré avec succès !";
+      "✅ Projet Cineflow généré !";
 
-    result.innerText = data.result;
+
+    result.innerText =
+      data.result;
 
 
   } catch (error) {
 
-    status.className = "error";
+    status.className =
+      "status error";
 
     status.innerText =
       "❌ " + error.message;
@@ -345,11 +498,13 @@ async function genererProjet() {
       "🚀 Générer mon projet";
 
   }
+
 }
 
 </script>
 
 </body>
+
 </html>
   `);
 });
@@ -363,64 +518,7 @@ app.get("/api/test-gemini", async (req, res) => {
 
   try {
 
-    if (!GEMINI_API_KEY) {
-
-      return res.status(500).json({
-        success: false,
-        error: "GEMINI_API_KEY n'est pas configurée sur Render."
-      });
-
-    }
-
-
-    const response = await ai.models.generateContent({
-
-      model: "gemini-3.8-flash",
-
-      contents:
-        "Réponds simplement en français : Je confirme que Gemini est correctement connecté à Cineflow."
-
-    });
-
-
-    const text =
-      response.text || "Gemini répond correctement.";
-
-
-    res.json({
-      success: true,
-      message: text
-    });
-
-
-  } catch (error) {
-
-    console.error("Erreur Gemini :", error);
-
-    res.status(500).json({
-
-      success: false,
-
-      error:
-        error.message ||
-        "Erreur inconnue avec Gemini."
-
-    });
-
-  }
-
-});
-
-
-// --------------------------------------------------
-// GENERATEUR CINEFLOW
-// --------------------------------------------------
-
-app.post("/api/generate", async (req, res) => {
-
-  try {
-
-    if (!GEMINI_API_KEY) {
+    if (!API_KEY) {
 
       return res.status(500).json({
 
@@ -434,10 +532,75 @@ app.post("/api/generate", async (req, res) => {
     }
 
 
-    const idea = req.body.idea;
+    const response =
+      await generateWithRetry(
+        "Réponds simplement en français : Je confirme que Gemini est correctement connecté à Cineflow."
+      );
 
 
-    if (!idea || typeof idea !== "string") {
+    res.json({
+
+      success: true,
+
+      message:
+        response.text ||
+        "Gemini répond correctement."
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "Erreur test Gemini :",
+      error
+    );
+
+
+    res.status(500).json({
+
+      success: false,
+
+      error:
+        error?.message ||
+        "Impossible de contacter Gemini."
+
+    });
+
+  }
+
+});
+
+
+// --------------------------------------------------
+// GENERATION DU PROJET CINEFLOW
+// --------------------------------------------------
+
+app.post("/api/generate", async (req, res) => {
+
+  try {
+
+    if (!API_KEY) {
+
+      return res.status(500).json({
+
+        success: false,
+
+        error:
+          "GEMINI_API_KEY n'est pas configurée sur Render."
+
+      });
+
+    }
+
+
+    const idea =
+      typeof req.body.idea === "string"
+        ? req.body.idea.trim()
+        : "";
+
+
+    if (!idea) {
 
       return res.status(400).json({
 
@@ -452,72 +615,107 @@ app.post("/api/generate", async (req, res) => {
 
 
     const prompt = `
-Tu es l'intelligence créative de Cineflow.
+Tu es Cineflow, un assistant professionnel de création vidéo.
 
-Ta mission est de transformer l'idée de l'utilisateur
-en un projet vidéo clair, créatif et exploitable.
+Transforme l'idée suivante en un projet vidéo complet,
+créatif, cohérent et directement exploitable.
 
-IDÉE DE L'UTILISATEUR :
+IDÉE :
 ${idea}
 
-Crée le projet en français avec exactement les sections suivantes :
+Réponds en français.
 
-1. TITRE
-Propose un titre accrocheur.
+Utilise exactement cette structure :
 
-2. CONCEPT
-Explique l'idée principale en quelques phrases.
+🎬 1. TITRE
 
-3. STYLE VISUEL
-Décris le style visuel, l'ambiance, les couleurs,
-la lumière et le type d'image.
+Donne un titre accrocheur.
 
-4. PERSONNAGES
-Présente les personnages principaux avec leur rôle
-et leurs caractéristiques importantes.
+💡 2. CONCEPT
 
-5. SCÉNARIO
-Écris une histoire structurée avec un début,
-un développement et une conclusion.
+Explique clairement le concept de la vidéo.
 
-6. 5 SCÈNES
-Présente exactement 5 scènes.
-Pour chaque scène indique :
-- Numéro de la scène
-- Lieu
-- Action
-- Personnages présents
-- Ambiance
-- Description visuelle
+🎨 3. STYLE VISUEL
 
-7. MINIATURE
-Propose une idée précise de miniature pour la vidéo.
+Décris :
+- l'ambiance
+- les couleurs
+- la lumière
+- le style cinématographique
+- le type d'images
 
-8. RÉSEAUX SOCIAUX
-Prépare :
-- Une description courte
-- Un texte pour publication
-- 5 hashtags pertinents
+👥 4. PERSONNAGES
 
-9. PROMPT VIDÉO
-À la fin, crée un prompt utilisable par
-un futur générateur vidéo IA pour représenter
-l'ensemble du projet.
+Présente les personnages principaux,
+leur rôle et leurs caractéristiques.
 
-Sois créatif, cohérent et concret.
-Ne dis pas que tu es une IA.
-Ne demande pas de précisions supplémentaires.
+📖 5. SCÉNARIO
+
+Présente :
+- le début
+- le développement
+- le conflit principal
+- la résolution
+- la fin
+
+🎞️ 6. LES 5 SCÈNES
+
+SCÈNE 1
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+SCÈNE 2
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+SCÈNE 3
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+SCÈNE 4
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+SCÈNE 5
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+🖼️ 7. MINIATURE
+
+Décris précisément l'image idéale pour la miniature.
+
+📱 8. RÉSEAUX SOCIAUX
+
+Description courte :
+Texte de publication :
+Hashtags :
+
+🤖 9. PROMPT POUR GÉNÉRATEUR VIDÉO
+
+Crée un prompt détaillé permettant à un futur
+générateur vidéo IA de représenter le projet.
+
+Sois créatif mais reste cohérent avec l'idée de départ.
 `;
 
 
-
-    const response = await ai.models.generateContent({
-
-      model: "gemini-3.8-flash",
-
-      contents: prompt
-
-    });
+    const response =
+      await generateWithRetry(prompt, 4);
 
 
     const result =
@@ -542,13 +740,18 @@ Ne demande pas de précisions supplémentaires.
     );
 
 
+    const message =
+      error?.message ||
+      "Erreur inconnue avec Gemini.";
+
+
     res.status(500).json({
 
       success: false,
 
       error:
-        error.message ||
-        "Impossible de générer le projet."
+        "Gemini est momentanément indisponible après plusieurs tentatives. Réessaie dans quelques instants. Détail : " +
+        message
 
     });
 
@@ -558,7 +761,7 @@ Ne demande pas de précisions supplémentaires.
 
 
 // --------------------------------------------------
-// DEMARRAGE DU SERVEUR
+// DEMARRAGE
 // --------------------------------------------------
 
 app.listen(PORT, () => {
