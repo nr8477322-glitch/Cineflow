@@ -2,27 +2,73 @@ const express = require("express");
 const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY
+});
 
-const apiKey = process.env.GEMINI_API_KEY;
+const MODEL = "gemini-3.8-flash";
 
-if (!apiKey) {
-  console.error("ERREUR : GEMINI_API_KEY n'est pas configurée.");
+// Petite pause entre les tentatives
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Appel Gemini avec 3 tentatives en cas de surcharge temporaire
+async function askGemini() {
+  let lastError;
 
-// Page principale
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents:
+          "Réponds simplement en français : confirme que Gemini est correctement connecté à Cineflow."
+      });
+
+      return response.text;
+
+    } catch (error) {
+      lastError = error;
+
+      console.error(
+        `Tentative Gemini ${attempt}/3 échouée :`,
+        error.message || error
+      );
+
+      // Si Gemini est temporairement indisponible,
+      // on attend avant de réessayer.
+      if (attempt < 3) {
+        await wait(attempt * 2000);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+
+// ─────────────────────────────────────────────
+// PAGE PRINCIPALE
+// ─────────────────────────────────────────────
+
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta name="theme-color" content="#0b1020">
+
   <title>Cineflow</title>
 
   <style>
@@ -32,10 +78,10 @@ app.get("/", (req, res) => {
 
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111827;
-      color: white;
       min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #0b1020;
+      color: white;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -44,47 +90,52 @@ app.get("/", (req, res) => {
 
     .container {
       width: 100%;
-      max-width: 700px;
-      background: #1f2937;
-      padding: 30px;
-      border-radius: 20px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      text-align: center;
     }
 
     h1 {
-      text-align: center;
-      margin-top: 0;
+      font-size: 42px;
+      margin-bottom: 10px;
     }
 
     .subtitle {
-      text-align: center;
-      color: #cbd5e1;
-      margin-bottom: 30px;
+      font-size: 18px;
+      color: #b8c0d4;
+      margin-bottom: 35px;
+    }
+
+    .card {
+      background: #151c32;
+      border-radius: 20px;
+      padding: 30px 20px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.3);
     }
 
     button {
-      width: 100%;
-      padding: 15px;
       border: none;
       border-radius: 12px;
-      background: #6366f1;
-      color: white;
-      font-size: 16px;
+      padding: 15px 24px;
+      font-size: 17px;
       font-weight: bold;
       cursor: pointer;
+      background: #ffffff;
+      color: #0b1020;
     }
 
-    button:hover {
-      background: #4f46e5;
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
     }
 
     #result {
-      margin-top: 20px;
+      margin-top: 25px;
       padding: 15px;
-      background: #111827;
       border-radius: 12px;
-      white-space: pre-wrap;
-      min-height: 50px;
+      background: #0f1527;
+      color: #dce3f5;
+      line-height: 1.5;
+      word-break: break-word;
     }
   </style>
 </head>
@@ -92,46 +143,69 @@ app.get("/", (req, res) => {
 <body>
 
   <div class="container">
-    <h1>🎬 Cineflow</h1>
 
-    <p class="subtitle">
+    <h1>Cineflow</h1>
+
+    <div class="subtitle">
       Ton espace de création assistée par intelligence artificielle
-    </p>
-
-    <button onclick="testGemini()">
-      ✨ Tester Gemini
-    </button>
-
-    <div id="result">
-      Clique sur le bouton pour lancer le test.
     </div>
+
+    <div class="card">
+
+      <button id="testButton" onclick="testGemini()">
+        ✨ Tester Gemini
+      </button>
+
+      <div id="result">
+        Clique sur le bouton pour lancer le test.
+      </div>
+
+    </div>
+
   </div>
+
 
   <script>
     async function testGemini() {
+
+      const button = document.getElementById("testButton");
       const result = document.getElementById("result");
 
-      result.textContent = "⏳ Connexion à Gemini...";
+      button.disabled = true;
+      button.textContent = "⏳ Test en cours...";
+
+      result.textContent = "Connexion à Gemini...";
 
       try {
-        const response = await fetch("/api/test-gemini", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          }
-        });
+
+        const response = await fetch("/test-gemini");
 
         const data = await response.json();
 
-        if (data.success) {
-          result.textContent = "✅ Gemini répond :\\n\\n" + data.message;
+        if (response.ok && data.success) {
+
+          result.innerHTML =
+            "✅ Gemini répond :<br><br>" +
+            data.message;
+
         } else {
-          result.textContent = "❌ Erreur : " + data.error;
+
+          result.innerHTML =
+            "❌ Erreur :<br><br>" +
+            (data.error || "Erreur inconnue.");
+
         }
 
       } catch (error) {
-        result.textContent =
-          "❌ Impossible de contacter le serveur : " + error.message;
+
+        result.innerHTML =
+          "❌ Impossible de contacter Cineflow.";
+
+      } finally {
+
+        button.disabled = false;
+        button.textContent = "✨ Tester Gemini";
+
       }
     }
   </script>
@@ -141,22 +215,25 @@ app.get("/", (req, res) => {
   `);
 });
 
-// Test de Gemini
-app.post("/api/test-gemini", async (req, res) => {
+
+// ─────────────────────────────────────────────
+// TEST GEMINI
+// ─────────────────────────────────────────────
+
+app.get("/test-gemini", async (req, res) => {
+
   try {
-    if (!ai) {
+
+    if (!process.env.GEMINI_API_KEY) {
+
       return res.status(500).json({
         success: false,
-        error: "GEMINI_API_KEY n'est pas configurée sur Render."
+        error: "La variable GEMINI_API_KEY n'est pas configurée sur Render."
       });
+
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: "Réponds simplement : Bonjour Cineflow, Gemini fonctionne !"
-    });
-
-    const message = response.text || "Gemini a répondu sans texte.";
+    const message = await askGemini();
 
     res.json({
       success: true,
@@ -164,16 +241,23 @@ app.post("/api/test-gemini", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Erreur Gemini :", error);
 
-    res.status(500).json({
+    console.error("Erreur Gemini finale :", error);
+
+    res.status(503).json({
       success: false,
-      error: error.message || "Erreur inconnue avec Gemini."
+      error:
+        "Gemini est temporairement indisponible. Cineflow a effectué plusieurs tentatives. Réessaie dans quelques instants."
     });
+
   }
 });
 
-// Démarrage du serveur
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Cineflow est démarré sur le port " + PORT);
+
+// ─────────────────────────────────────────────
+// DÉMARRAGE DU SERVEUR
+// ─────────────────────────────────────────────
+
+app.listen(PORT, () => {
+  console.log(`Cineflow API démarrée sur le port ${PORT}`);
 });
