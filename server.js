@@ -3,7 +3,7 @@ const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -12,11 +12,11 @@ const ai = new GoogleGenAI({
   apiKey: API_KEY
 });
 
-const MODEL = "gemini-3.7-flash";
+const MODEL = "gemini-3.8-flash";
 
-/* =========================================================
-   GEMINI - RETRY
-========================================================= */
+// --------------------------------------------------
+// GEMINI AVEC NOUVELLES TENTATIVES AUTOMATIQUES
+// --------------------------------------------------
 
 async function generateWithRetry(contents, attempts = 4) {
   let lastError;
@@ -68,11 +68,13 @@ async function generateWithRetry(contents, attempts = 4) {
   throw lastError;
 }
 
-/* =========================================================
-   PAGE PRINCIPALE
-========================================================= */
+
+// --------------------------------------------------
+// PAGE PRINCIPALE
+// --------------------------------------------------
 
 app.get("/", (req, res) => {
+
   res.send(`
 <!DOCTYPE html>
 <html lang="fr">
@@ -84,12 +86,9 @@ app.get("/", (req, res) => {
 <meta
   name="viewport"
   content="width=device-width, initial-scale=1.0"
-/>
+>
 
-<meta
-  name="theme-color"
-  content="#0b1020"
-/>
+<meta name="theme-color" content="#0b1020">
 
 <title>Cineflow</title>
 
@@ -101,205 +100,166 @@ app.get("/", (req, res) => {
 
 body {
   margin: 0;
-  font-family:
-    Arial,
-    Helvetica,
-    sans-serif;
+  min-height: 100vh;
   background: #0b1020;
   color: white;
+  font-family: Arial, sans-serif;
 }
 
 header {
-  padding: 35px 20px 25px;
   text-align: center;
+  padding: 32px 18px 20px;
 }
 
 header h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: 38px;
 }
 
 header p {
   margin-top: 10px;
-  color: #aeb8d0;
-  line-height: 1.5;
+  color: #b9c1d9;
+  font-size: 16px;
 }
 
 .container {
-  width: min(900px, 94%);
+  width: 92%;
+  max-width: 900px;
   margin: auto;
   padding-bottom: 50px;
 }
 
 .card {
-  background: #11182b;
-  border: 1px solid #202b45;
+  background: #151c32;
+  border: 1px solid #293452;
   border-radius: 18px;
-  padding: 20px;
-  margin-bottom: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  padding: 22px;
+  margin-top: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
 
 .card h2 {
   margin-top: 0;
+  font-size: 22px;
 }
 
 .description {
-  color: #aeb8d0;
-  line-height: 1.5;
+  color: #b9c1d9;
+  line-height: 1.6;
 }
 
 textarea {
   width: 100%;
-  min-height: 130px;
+  min-height: 150px;
   resize: vertical;
-  border: 1px solid #303d5c;
-  border-radius: 12px;
-  background: #0b1020;
+
+  background: #0d1427;
   color: white;
+
+  border: 1px solid #34405f;
+  border-radius: 12px;
+
   padding: 15px;
+
   font-size: 16px;
+  line-height: 1.5;
+
   outline: none;
 }
 
 textarea:focus {
-  border-color: #7c8cff;
+  border-color: #6d7cff;
 }
 
 button {
   width: 100%;
+  margin-top: 15px;
+
+  padding: 15px;
+
   border: none;
   border-radius: 12px;
-  padding: 14px 18px;
-  margin-top: 12px;
-  background: #5865f2;
+
+  background: #5b6cff;
   color: white;
-  font-size: 16px;
+
+  font-size: 17px;
   font-weight: bold;
+
   cursor: pointer;
 }
 
 button:hover {
-  opacity: 0.92;
+  background: #7180ff;
 }
 
-button.secondary {
-  background: #202b45;
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
-button.success {
-  background: #16875c;
+.test-button {
+  background: #26304d;
 }
 
-button.warning {
-  background: #9a6b16;
+.test-button:hover {
+  background: #34405f;
+}
+
+.image-button {
+  background: #8b5cf6;
+}
+
+.image-button:hover {
+  background: #9d72ff;
 }
 
 .status {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #0b1020;
-  color: #aeb8d0;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
-.result {
   margin-top: 15px;
-  padding: 16px;
-  background: #0b1020;
-  border-radius: 12px;
-  border: 1px solid #202b45;
-  white-space: pre-wrap;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
-.hidden {
-  display: none;
-}
-
-.progress-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.step {
-  background: #0d1427;
-  border: 1px solid #202b45;
-  border-radius: 12px;
-  padding: 15px;
-  text-align: center;
-}
-
-.step .icon {
-  font-size: 25px;
-}
-
-.step strong {
-  display: block;
-  margin-top: 7px;
-}
-
-.step span {
-  display: block;
-  color: #7f8ba8;
-  font-size: 13px;
-  margin-top: 5px;
-}
-
-.step.active {
-  border-color: #5865f2;
-  background: #151d38;
-}
-
-.step.done {
-  border-color: #16875c;
-}
-
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.info-box {
   padding: 13px;
+
   border-radius: 10px;
+
   background: #0d1427;
-  color: #aeb8d0;
-  margin-top: 12px;
-  line-height: 1.5;
+
+  white-space: pre-wrap;
+}
+
+.success {
+  color: #76e6a5;
+}
+
+.error {
+  color: #ff8c8c;
+}
+
+.loading {
+  color: #c4cbff;
+}
+
+#result,
+#imageResult {
+  margin-top: 20px;
+
+  color: #e7ebf7;
+
+  line-height: 1.7;
+
+  white-space: pre-wrap;
+}
+
+#imageCard {
+  display: none;
 }
 
 footer {
   text-align: center;
-  color: #65718e;
-  padding: 20px;
+
+  color: #707993;
+
+  padding: 30px 10px;
+
   font-size: 13px;
-}
-
-@media (max-width: 600px) {
-
-  header h1 {
-    font-size: 29px;
-  }
-
-  .card {
-    padding: 16px;
-  }
-
-  .progress-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .actions {
-    grid-template-columns: 1fr;
-  }
-
 }
 
 </style>
@@ -307,6 +267,7 @@ footer {
 </head>
 
 <body>
+
 
 <header>
 
@@ -318,101 +279,46 @@ Ton espace de création assistée par intelligence artificielle
 
 </header>
 
+
 <div class="container">
 
-<!-- =====================================================
-     PARCOURS
-===================================================== -->
+
+<!-- CONNEXION GEMINI -->
 
 <div class="card">
 
-<h2>🚀 Parcours Cineflow</h2>
+<h2>🔌 Connexion Gemini</h2>
 
-<p class="description">
-Transforme ton idée en contenu vidéo étape par étape.
-</p>
-
-<div class="progress-grid">
-
-<div class="step active" id="stepIdea">
-<div class="icon">💡</div>
-<strong>Idée</strong>
-<span>Ton concept</span>
-</div>
-
-<div class="step" id="stepProject">
-<div class="icon">🎬</div>
-<strong>Projet</strong>
-<span>Structure complète</span>
-</div>
-
-<div class="step" id="stepScenes">
-<div class="icon">🎞️</div>
-<strong>5 scènes</strong>
-<span>Découpage</span>
-</div>
-
-<div class="step" id="stepImages">
-<div class="icon">🖼️</div>
-<strong>Images</strong>
-<span>Prompts visuels</span>
-</div>
-
-<div class="step" id="stepVideo">
-<div class="icon">🎥</div>
-<strong>Vidéo</strong>
-<span>Préparation</span>
-</div>
-
-<div class="step" id="stepSocial">
-<div class="icon">📱</div>
-<strong>Réseaux</strong>
-<span>Publication</span>
-</div>
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-     CONNEXION GEMINI
-===================================================== -->
-
-<div class="card">
-
-<h2>🤖 Connexion IA</h2>
-
-<p class="description">
-Vérifie la connexion entre Cineflow et Gemini.
-</p>
-
-<button onclick="testerGemini()">
+<button
+  class="test-button"
+  id="testButton"
+  onclick="testerGemini()"
+>
 ✨ Tester Gemini
 </button>
 
-<div id="geminiStatus" class="status">
-Clique sur le bouton pour lancer le test.
-</div>
+<div
+  id="testStatus"
+  style="display:none"
+></div>
 
 </div>
 
 
-<!-- =====================================================
-     CREATION
-===================================================== -->
+<!-- CREATION -->
 
 <div class="card">
 
-<h2>💡 Créer un projet</h2>
+<h2>🎥 Créer une vidéo</h2>
 
 <p class="description">
-Décris ton idée. Cineflow va préparer la structure de ton projet.
+Décris simplement ton idée de film,
+d'animation, d'action, de drama ou de football.
 </p>
 
 <textarea
   id="idea"
-  placeholder="Exemple : Un jeune footballeur de Ouagadougou rêve de devenir professionnel..."
+  placeholder="Exemple : Un jeune footballeur africain rêve de devenir professionnel malgré les difficultés..."
 ></textarea>
 
 <button
@@ -422,221 +328,84 @@ Décris ton idée. Cineflow va préparer la structure de ton projet.
 🚀 Générer mon projet
 </button>
 
-<div id="status" class="status">
-Ton projet apparaîtra ici.
-</div>
+<div
+  id="status"
+  style="display:none"
+></div>
+
+<div id="result"></div>
 
 </div>
 
 
-<!-- =====================================================
-     PROJET
-===================================================== -->
+<!-- PREPARATION DES IMAGES -->
 
-<div id="projectCard" class="card hidden">
-
-<h2>🎬 Projet Cineflow</h2>
-
-<div class="actions">
-
-<button
-  class="secondary"
-  onclick="copierProjet()"
+<div
+  class="card"
+  id="imageCard"
 >
-📋 Copier le projet
-</button>
 
-<button
-  class="secondary"
-  onclick="sauvegarderProjet()"
->
-💾 Sauvegarder
-</button>
-
-</div>
-
-<div id="result" class="result"></div>
-
-</div>
-
-
-<!-- =====================================================
-     IMAGES
-===================================================== -->
-
-<div id="imageCard" class="card hidden">
-
-<h2>🖼️ Préparer les images</h2>
+<h2>🎨 Préparer les images</h2>
 
 <p class="description">
-Cineflow prépare les prompts visuels des 5 scènes en gardant
-une cohérence entre les personnages, les lieux et le style.
+Cineflow transforme ton projet en 5 prompts
+visuels cohérents, prêts à être utilisés par
+un générateur d'images ou de vidéos.
 </p>
 
 <button
+  class="image-button"
+  id="imageButton"
   onclick="preparerImages()"
 >
 🎨 Préparer les 5 scènes
 </button>
 
-<div id="imageStatus" class="status">
-Les prompts visuels apparaîtront ici.
-</div>
+<div
+  id="imageStatus"
+  style="display:none"
+></div>
 
-<div id="imageResult" class="result"></div>
-
-</div>
-
-
-<!-- =====================================================
-     VIDEO
-===================================================== -->
-
-<div id="videoCard" class="card hidden">
-
-<h2>🎥 Préparer la vidéo</h2>
-
-<p class="description">
-Cette étape prépare les informations nécessaires à la génération
-de la vidéo à partir des 5 scènes.
-</p>
-
-<div class="info-box">
-🎞️ Les scènes sont prêtes à être utilisées dans un générateur vidéo.
-<br><br>
-Cineflow séparera ensuite les scènes, leurs mouvements, leurs
-transitions et leur ambiance sonore.
-</div>
-
-<button
-  class="success"
-  onclick="preparerVideo()"
->
-🎥 Préparer le projet vidéo
-</button>
-
-<div id="videoResult" class="result hidden"></div>
+<div id="imageResult"></div>
 
 </div>
 
 
-<!-- =====================================================
-     RESEAUX
-===================================================== -->
-
-<div id="socialCard" class="card hidden">
-
-<h2>📱 Réseaux sociaux</h2>
-
-<p class="description">
-Prépare les contenus nécessaires pour publier ton projet.
-</p>
-
-<button
-  onclick="preparerReseaux()"
->
-📱 Préparer les publications
-</button>
-
-<div id="socialResult" class="result hidden"></div>
-
 </div>
 
-
-<!-- =====================================================
-     OUTILS
-===================================================== -->
-
-<div class="card">
-
-<h2>🛠️ Outils</h2>
-
-<button
-  class="secondary"
-  onclick="chargerProjet()"
->
-📂 Charger mon dernier projet
-</button>
-
-<button
-  class="warning"
-  onclick="nouveauProjet()"
->
-🔄 Nouveau projet
-</button>
-
-</div>
-
-</div>
 
 <footer>
-Cineflow — Création vidéo assistée par intelligence artificielle
+
+Cineflow — Création assistée par intelligence artificielle
+
 </footer>
 
 
 <script>
 
-/* =========================================================
-   VARIABLES
-========================================================= */
-
 let dernierProjet = "";
-let derniersPromptsImages = "";
 
 
-/* =========================================================
-   OUTILS
-========================================================= */
-
-function afficherEtape(id) {
-
-  const element = document.getElementById(id);
-
-  if (element) {
-    element.classList.add("active");
-  }
-
-}
-
-function terminerEtape(id) {
-
-  const element = document.getElementById(id);
-
-  if (element) {
-    element.classList.remove("active");
-    element.classList.add("done");
-  }
-
-}
-
-async function copierTexte(texte) {
-
-  try {
-
-    await navigator.clipboard.writeText(texte);
-
-    alert("✅ Copié !");
-
-  } catch (error) {
-
-    alert("Impossible de copier automatiquement.");
-
-  }
-
-}
-
-
-/* =========================================================
-   TEST GEMINI
-========================================================= */
+// --------------------------------------------------
+// TEST GEMINI
+// --------------------------------------------------
 
 async function testerGemini() {
 
-  const status =
-    document.getElementById("geminiStatus");
+  const button =
+    document.getElementById("testButton");
 
-  status.textContent =
-    "⏳ Test de connexion à Gemini...";
+  const box =
+    document.getElementById("testStatus");
+
+  button.disabled = true;
+
+  box.style.display = "block";
+
+  box.className = "status loading";
+
+  box.innerText =
+    "⏳ Connexion à Gemini...";
 
   try {
 
@@ -648,57 +417,95 @@ async function testerGemini() {
 
     if (data.success) {
 
-      status.textContent =
+      box.className =
+        "status success";
+
+      box.innerText =
         "✅ Gemini répond :\\n\\n" +
         data.message;
 
     } else {
 
-      status.textContent =
-        "❌ Erreur : " +
-        JSON.stringify(data);
+      box.className =
+        "status error";
+
+      box.innerText =
+        "❌ " + data.error;
 
     }
 
   } catch (error) {
 
-    status.textContent =
+    box.className =
+      "status error";
+
+    box.innerText =
       "❌ Impossible de contacter Cineflow.";
+
+  } finally {
+
+    button.disabled = false;
 
   }
 
 }
 
 
-/* =========================================================
-   GENERER PROJET
-========================================================= */
+// --------------------------------------------------
+// GENERER LE PROJET
+// --------------------------------------------------
 
 async function genererProjet() {
 
   const idea =
     document.getElementById("idea").value.trim();
 
-  const status =
-    document.getElementById("status");
-
   const button =
     document.getElementById("generateButton");
 
+  const status =
+    document.getElementById("status");
+
+  const result =
+    document.getElementById("result");
+
+  const imageCard =
+    document.getElementById("imageCard");
+
+
   if (!idea) {
 
-    status.textContent =
-      "⚠️ Écris d'abord ton idée.";
+    status.style.display = "block";
+
+    status.className =
+      "status error";
+
+    status.innerText =
+      "⚠️ Décris d'abord ton idée de vidéo.";
 
     return;
+
   }
+
 
   button.disabled = true;
 
-  status.textContent =
-    "⏳ Cineflow prépare ton projet...";
+  button.innerText =
+    "⏳ Cineflow travaille...";
 
-  afficherEtape("stepProject");
+  status.style.display = "block";
+
+  status.className =
+    "status loading";
+
+  status.innerText =
+    "🤖 Gemini prépare ton projet...\\n" +
+    "Une nouvelle tentative sera effectuée automatiquement si le serveur est momentanément chargé.";
+
+  result.innerText = "";
+
+  imageCard.style.display = "none";
+
 
   try {
 
@@ -717,8 +524,10 @@ async function genererProjet() {
 
       });
 
+
     const data =
       await response.json();
+
 
     if (!response.ok || !data.success) {
 
@@ -729,149 +538,54 @@ async function genererProjet() {
 
     }
 
+
     dernierProjet =
-      data.result || "";
+      data.result;
 
-    document.getElementById("projectCard")
-      .classList.remove("hidden");
 
-    document.getElementById("result")
-      .textContent = dernierProjet;
+    status.className =
+      "status success";
 
-    document.getElementById("imageCard")
-      .classList.remove("hidden");
+    status.innerText =
+      "✅ Projet Cineflow généré !";
 
-    document.getElementById("videoCard")
-      .classList.remove("hidden");
 
-    document.getElementById("socialCard")
-      .classList.remove("hidden");
+    result.innerText =
+      data.result;
 
-    status.textContent =
-      "✅ Projet généré avec succès.";
 
-    terminerEtape("stepIdea");
-    terminerEtape("stepProject");
-    afficherEtape("stepScenes");
+    imageCard.style.display =
+      "block";
 
-    document.getElementById("projectCard")
-      .scrollIntoView({
-        behavior: "smooth"
-      });
 
   } catch (error) {
 
-    console.error(error);
+    status.className =
+      "status error";
 
-    status.textContent =
-      "❌ " +
-      (error.message ||
-      "Une erreur est survenue.");
+    status.innerText =
+      "❌ " + error.message;
 
   } finally {
 
     button.disabled = false;
 
+    button.innerText =
+      "🚀 Générer mon projet";
+
   }
 
 }
 
 
-/* =========================================================
-   COPIER PROJET
-========================================================= */
-
-function copierProjet() {
-
-  if (!dernierProjet) {
-
-    alert("Aucun projet à copier.");
-
-    return;
-
-  }
-
-  copierTexte(dernierProjet);
-
-}
-
-
-/* =========================================================
-   SAUVEGARDER
-========================================================= */
-
-function sauvegarderProjet() {
-
-  if (!dernierProjet) {
-
-    alert("Aucun projet à sauvegarder.");
-
-    return;
-
-  }
-
-  localStorage.setItem(
-    "cineflowProjet",
-    dernierProjet
-  );
-
-  alert(
-    "💾 Projet sauvegardé sur cet appareil."
-  );
-
-}
-
-
-/* =========================================================
-   CHARGER
-========================================================= */
-
-function chargerProjet() {
-
-  const projet =
-    localStorage.getItem(
-      "cineflowProjet"
-    );
-
-  if (!projet) {
-
-    alert(
-      "Aucun projet sauvegardé."
-    );
-
-    return;
-
-  }
-
-  dernierProjet = projet;
-
-  document.getElementById("projectCard")
-    .classList.remove("hidden");
-
-  document.getElementById("result")
-    .textContent = projet;
-
-  document.getElementById("imageCard")
-    .classList.remove("hidden");
-
-  document.getElementById("videoCard")
-    .classList.remove("hidden");
-
-  document.getElementById("socialCard")
-    .classList.remove("hidden");
-
-  alert(
-    "📂 Projet chargé."
-  );
-
-}
-
-
-/* =========================================================
-   PREPARER IMAGES
-========================================================= */
+// --------------------------------------------------
+// PREPARER LES PROMPTS VISUELS
+// --------------------------------------------------
 
 async function preparerImages() {
+
+  const button =
+    document.getElementById("imageButton");
 
   const status =
     document.getElementById("imageStatus");
@@ -879,19 +593,37 @@ async function preparerImages() {
   const result =
     document.getElementById("imageResult");
 
+
   if (!dernierProjet) {
 
-    status.textContent =
-      "⚠️ Génère d'abord un projet.";
+    status.style.display = "block";
+
+    status.className =
+      "status error";
+
+    status.innerText =
+      "⚠️ Génère d'abord un projet Cineflow.";
 
     return;
 
   }
 
-  status.textContent =
-    "⏳ Préparation des 5 scènes...";
 
-  afficherEtape("stepImages");
+  button.disabled = true;
+
+  button.innerText =
+    "⏳ Préparation des scènes...";
+
+  status.style.display = "block";
+
+  status.className =
+    "status loading";
+
+  status.innerText =
+    "🎨 Gemini prépare les prompts visuels...";
+
+  result.innerText = "";
+
 
   try {
 
@@ -910,233 +642,50 @@ async function preparerImages() {
 
       });
 
+
     const data =
       await response.json();
+
 
     if (!response.ok || !data.success) {
 
       throw new Error(
         data.error ||
-        "Impossible de préparer les images."
+        "Erreur pendant la préparation des images."
       );
 
     }
 
-    derniersPromptsImages =
-      data.result || "";
 
-    result.textContent =
-      derniersPromptsImages;
+    status.className =
+      "status success";
 
-    status.textContent =
-      "✅ Les 5 prompts visuels sont prêts.";
+    status.innerText =
+      "✅ Les 5 scènes sont prêtes !";
 
-    terminerEtape("stepScenes");
-    terminerEtape("stepImages");
 
-    document.getElementById("imageCard")
-      .scrollIntoView({
-        behavior: "smooth"
-      });
+    result.innerText =
+      data.result;
+
 
   } catch (error) {
 
-    console.error(error);
+    status.className =
+      "status error";
 
-    status.textContent =
-      "❌ " +
-      (error.message ||
-      "Erreur.");
+    status.innerText =
+      "❌ " + error.message;
+
+  } finally {
+
+    button.disabled = false;
+
+    button.innerText =
+      "🎨 Préparer les 5 scènes";
 
   }
 
 }
-
-
-/* =========================================================
-   PREPARER VIDEO
-========================================================= */
-
-function preparerVideo() {
-
-  const result =
-    document.getElementById("videoResult");
-
-  if (!dernierProjet) {
-
-    alert(
-      "Génère d'abord un projet."
-    );
-
-    return;
-
-  }
-
-  const texte =
-`🎥 PROJET VIDÉO CINEFLOW
-
-Le projet contient :
-
-✅ Concept
-✅ Personnages
-✅ Scénario
-✅ 5 scènes
-✅ Direction visuelle
-✅ Prompts d'images
-✅ Informations pour les réseaux sociaux
-
-PROCHAINE ÉTAPE
-
-Utiliser les 5 scènes pour créer les séquences vidéo,
-puis assembler les séquences dans l'ordre.
-
-Cineflow est prêt pour l'étape de génération vidéo.`;
-
-  result.textContent = texte;
-
-  result.classList.remove("hidden");
-
-  terminerEtape("stepVideo");
-
-  result.scrollIntoView({
-    behavior: "smooth"
-  });
-
-}
-
-
-/* =========================================================
-   RESEAUX SOCIAUX
-========================================================= */
-
-function preparerReseaux() {
-
-  const result =
-    document.getElementById("socialResult");
-
-  if (!dernierProjet) {
-
-    alert(
-      "Génère d'abord un projet."
-    );
-
-    return;
-
-  }
-
-  const texte =
-`📱 PUBLICATION CINEFLOW
-
-Utilise les informations de la section
-« RÉSEAUX SOCIAUX » de ton projet.
-
-Préparation :
-
-🎬 TikTok
-🎬 YouTube Shorts
-🎬 Instagram Reels
-🎬 Facebook
-
-Le titre, la description, les hashtags et le concept
-peuvent être adaptés à chaque plateforme.`;
-
-  result.textContent = texte;
-
-  result.classList.remove("hidden");
-
-  terminerEtape("stepSocial");
-
-  result.scrollIntoView({
-    behavior: "smooth"
-  });
-
-}
-
-
-/* =========================================================
-   NOUVEAU PROJET
-========================================================= */
-
-function nouveauProjet() {
-
-  const confirmation =
-    confirm(
-      "Créer un nouveau projet ?"
-    );
-
-  if (!confirmation) {
-    return;
-  }
-
-  dernierProjet = "";
-  derniersPromptsImages = "";
-
-  document.getElementById("idea").value = "";
-
-  document.getElementById("status").textContent =
-    "Ton projet apparaîtra ici.";
-
-  document.getElementById("result").textContent =
-    "";
-
-  document.getElementById("imageResult").textContent =
-    "";
-
-  document.getElementById("videoResult").textContent =
-    "";
-
-  document.getElementById("socialResult").textContent =
-    "";
-
-  document.getElementById("projectCard")
-    .classList.add("hidden");
-
-  document.getElementById("imageCard")
-    .classList.add("hidden");
-
-  document.getElementById("videoCard")
-    .classList.add("hidden");
-
-  document.getElementById("socialCard")
-    .classList.add("hidden");
-
-  document.querySelectorAll(".step")
-    .forEach(step => {
-
-      step.classList.remove("active");
-      step.classList.remove("done");
-
-    });
-
-  document.getElementById("stepIdea")
-    .classList.add("active");
-
-}
-
-
-/* =========================================================
-   CHARGER AUTOMATIQUEMENT LE PROJET
-========================================================= */
-
-window.addEventListener(
-  "load",
-  () => {
-
-    const projet =
-      localStorage.getItem(
-        "cineflowProjet"
-      );
-
-    if (projet) {
-
-      console.log(
-        "Un projet Cineflow est sauvegardé sur cet appareil."
-      );
-
-    }
-
-  }
-);
 
 </script>
 
@@ -1147,9 +696,9 @@ window.addEventListener(
 });
 
 
-/* =========================================================
-   TEST GEMINI
-========================================================= */
+// --------------------------------------------------
+// TEST GEMINI
+// --------------------------------------------------
 
 app.get("/api/test-gemini", async (req, res) => {
 
@@ -1159,35 +708,46 @@ app.get("/api/test-gemini", async (req, res) => {
 
       return res.status(500).json({
         success: false,
-        error: "GEMINI_API_KEY est absente."
+        error:
+          "GEMINI_API_KEY n'est pas configurée sur Render."
       });
 
     }
 
+
     const response =
       await generateWithRetry(
-        "Réponds simplement : Je suis connecté à Cineflow."
+        "Réponds simplement en français : Je confirme que Gemini est correctement connecté à Cineflow."
       );
 
+
     res.json({
+
       success: true,
+
       message:
         response.text ||
         "Gemini répond correctement."
+
     });
+
 
   } catch (error) {
 
     console.error(
-      "Erreur /api/test-gemini:",
+      "Erreur test Gemini :",
       error
     );
 
+
     res.status(500).json({
+
       success: false,
+
       error:
         error?.message ||
         "Impossible de contacter Gemini."
+
     });
 
   }
@@ -1195,113 +755,187 @@ app.get("/api/test-gemini", async (req, res) => {
 });
 
 
-/* =========================================================
-   GENERATION DU PROJET
-========================================================= */
+// --------------------------------------------------
+// GENERATION DU PROJET
+// --------------------------------------------------
 
 app.post("/api/generate", async (req, res) => {
 
   try {
 
-    const idea =
-      String(req.body.idea || "").trim();
+    if (!API_KEY) {
 
-    if (!idea) {
+      return res.status(500).json({
 
-      return res.status(400).json({
         success: false,
-        error: "L'idée est obligatoire."
+
+        error:
+          "GEMINI_API_KEY n'est pas configurée sur Render."
+
       });
 
     }
 
+
+    const idea =
+      typeof req.body.idea === "string"
+        ? req.body.idea.trim()
+        : "";
+
+
+    if (!idea) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Aucune idée de vidéo n'a été fournie."
+
+      });
+
+    }
+
+
     const prompt = `
-Tu es l'intelligence créative de Cineflow.
+Tu es Cineflow, un assistant professionnel de création vidéo.
 
-À partir de cette idée :
+Transforme l'idée suivante en un projet vidéo complet,
+créatif, cohérent et directement exploitable.
 
-"${idea}"
+IDÉE :
+${idea}
 
-Crée un projet vidéo complet en français.
+Réponds en français.
 
-Réponds exactement avec ces sections :
+Utilise exactement cette structure :
 
-1. TITRE
+🎬 1. TITRE
 
-2. CONCEPT
+Donne un titre accrocheur.
 
-3. STYLE VISUEL
+💡 2. CONCEPT
 
-4. PERSONNAGES
+Explique clairement le concept de la vidéo.
 
-5. SCÉNARIO
+🎨 3. STYLE VISUEL
 
-6. LES 5 SCÈNES
+Décris :
+- l'ambiance
+- les couleurs
+- la lumière
+- le style cinématographique
+- le type d'images
 
-Pour chaque scène indique :
-- Numéro
-- Lieu
-- Personnages
-- Action
-- Ambiance
-- Cadrage caméra
-- Mouvement caméra
-- Description visuelle
+👥 4. PERSONNAGES
 
-7. MINIATURE
+Présente les personnages principaux,
+leur rôle et leurs caractéristiques.
 
-Décris une miniature forte et cinématographique.
+📖 5. SCÉNARIO
 
-8. RÉSEAUX SOCIAUX
+Présente :
+- le début
+- le développement
+- le conflit principal
+- la résolution
+- la fin
 
-Prépare :
-- Titre
-- Description courte
-- Hashtags
-- Version TikTok
-- Version YouTube Shorts
-- Version Instagram Reels
-- Version Facebook
+🎞️ 6. LES 5 SCÈNES
 
-9. PROMPT POUR GÉNÉRATEUR VIDÉO
+SCÈNE 1
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
 
-Crée un prompt détaillé permettant de transformer
-les 5 scènes en vidéo.
+SCÈNE 2
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
 
-Règles :
+SCÈNE 3
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
 
-- Tout doit être en français.
-- Garde les personnages cohérents.
-- Garde les lieux cohérents.
-- Garde le style visuel cohérent.
-- Le résultat doit être directement exploitable par Cineflow.
-- Ne demande pas d'informations supplémentaires.
+SCÈNE 4
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+SCÈNE 5
+Lieu :
+Action :
+Personnages :
+Ambiance :
+Description visuelle :
+
+🖼️ 7. MINIATURE
+
+Décris précisément l'image idéale pour la miniature.
+
+📱 8. RÉSEAUX SOCIAUX
+
+Description courte :
+Texte de publication :
+Hashtags :
+
+🤖 9. PROMPT POUR GÉNÉRATEUR VIDÉO
+
+Crée un prompt détaillé permettant à un futur
+générateur vidéo IA de représenter le projet.
+
+Sois créatif mais reste cohérent avec l'idée de départ.
 `;
 
+
     const response =
-      await generateWithRetry(prompt);
+      await generateWithRetry(prompt, 4);
+
 
     const result =
       response.text ||
-      "Aucun résultat généré.";
+      "Aucun résultat n'a été retourné par Gemini.";
+
 
     res.json({
+
       success: true,
+
       result: result
+
     });
+
 
   } catch (error) {
 
     console.error(
-      "Erreur /api/generate:",
+      "Erreur génération Cineflow :",
       error
     );
 
+
+    const message =
+      error?.message ||
+      "Erreur inconnue avec Gemini.";
+
+
     res.status(500).json({
+
       success: false,
+
       error:
-        error?.message ||
-        "Impossible de générer le projet."
+        "Gemini est momentanément indisponible après plusieurs tentatives. Réessaie dans quelques instants. Détail : " +
+        message
+
     });
 
   }
@@ -1309,88 +943,127 @@ Règles :
 });
 
 
-/* =========================================================
-   PREPARATION DES IMAGES
-========================================================= */
+// --------------------------------------------------
+// PREPARATION DES IMAGES
+// --------------------------------------------------
 
 app.post("/api/prepare-images", async (req, res) => {
 
   try {
 
-    const project =
-      String(req.body.project || "").trim();
+    if (!API_KEY) {
 
-    if (!project) {
+      return res.status(500).json({
 
-      return res.status(400).json({
         success: false,
-        error: "Le projet est obligatoire."
+
+        error:
+          "GEMINI_API_KEY n'est pas configurée sur Render."
+
       });
 
     }
 
+
+    const project =
+      typeof req.body.project === "string"
+        ? req.body.project.trim()
+        : "";
+
+
+    if (!project) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Aucun projet Cineflow n'a été fourni."
+
+      });
+
+    }
+
+
     const prompt = `
-Tu travailles pour Cineflow.
+Tu es le directeur artistique de Cineflow.
 
-Voici un projet vidéo :
+À partir du projet vidéo ci-dessous, crée exactement
+5 prompts visuels, un pour chacune des 5 scènes.
 
-${project}
+Les 5 images doivent représenter le même film.
+La cohérence des personnages, des vêtements,
+des lieux, de l'âge et de l'ambiance doit être
+maintenue d'une scène à l'autre.
 
-Prépare exactement 5 prompts d'images,
-un pour chacune des 5 scènes.
+Réponds en français.
 
-Pour chaque scène indique :
+Pour chaque scène, utilise exactement :
 
-SCÈNE 1
-- Sujet
-- Personnages
-- Décor
-- Action
-- Éclairage
-- Caméra
-- Style
-- Prompt final
+🎞️ SCÈNE 1
+PROMPT VISUEL :
+FORMAT :
+CAMÉRA :
+LUMIÈRE :
+AMBIANCE :
 
 Puis fais la même chose pour les scènes 2, 3, 4 et 5.
 
 IMPORTANT :
+- Décris précisément les personnages.
+- Maintiens leur apparence d'une scène à l'autre.
+- Décris le lieu.
+- Décris l'action.
+- Décris la composition de l'image.
+- Utilise un style cinématographique réaliste.
+- Prépare les prompts pour un futur générateur d'images ou de vidéos.
+- Ne crée pas encore les images.
+- Ne change pas l'histoire.
 
-Les personnages doivent rester identiques
-d'une scène à l'autre.
-
-Le style visuel doit rester identique.
-
-Les vêtements, l'âge apparent, les caractéristiques
-visuelles et les lieux doivent rester cohérents.
-
-Les prompts doivent être suffisamment détaillés
-pour être utilisés dans un générateur d'images.
+PROJET CINEFLOW :
+${project}
 `;
 
+
     const response =
-      await generateWithRetry(prompt);
+      await generateWithRetry(prompt, 4);
+
 
     const result =
       response.text ||
-      "Aucun prompt généré.";
+      "Aucun prompt visuel n'a été généré.";
+
 
     res.json({
+
       success: true,
+
       result: result
+
     });
+
 
   } catch (error) {
 
     console.error(
-      "Erreur /api/prepare-images:",
+      "Erreur préparation images :",
       error
     );
 
+
+    const message =
+      error?.message ||
+      "Erreur inconnue.";
+
+
     res.status(500).json({
+
       success: false,
+
       error:
-        error?.message ||
-        "Impossible de préparer les images."
+        "Impossible de préparer les scènes. Détail : " +
+        message
+
     });
 
   }
@@ -1398,15 +1071,14 @@ pour être utilisés dans un générateur d'images.
 });
 
 
-/* =========================================================
-   DEMARRAGE
-========================================================= */
+// --------------------------------------------------
+// DEMARRAGE
+// --------------------------------------------------
 
 app.listen(PORT, () => {
 
   console.log(
-    "Cineflow API démarrée sur le port " +
-    PORT
+    "Cineflow API démarrée sur le port " + PORT
   );
 
 });
