@@ -1001,7 +1001,6 @@ app.post(
 /* =========================================================
    ANIMATION
 ========================================================= */
-
 app.post(
   "/api/animate",
   async (req, res) => {
@@ -1026,13 +1025,45 @@ app.post(
         );
       }
 
+      if (
+        !project.scenes ||
+        project.scenes.length !== 5
+      ) {
+        throw new Error(
+          "Le projet doit contenir 5 scènes."
+        );
+      }
+
       const videos = [];
 
       for (
-        const scene of
-        project.scenes
+        const scene of project.scenes
       ) {
         try {
+          const imageRecord =
+            project.images?.find(
+              (img) =>
+                Number(img.scene) ===
+                Number(scene.number)
+            );
+
+          if (!imageRecord) {
+            throw new Error(
+              `Image manquante pour la scène ${scene.number}.`
+            );
+          }
+
+          const imageData =
+            generatedImages.get(
+              imageRecord.id
+            );
+
+          if (!imageData) {
+            throw new Error(
+              `Image introuvable pour la scène ${scene.number}.`
+            );
+          }
+
           const operation =
             await ai.models.generateVideos({
               model:
@@ -1040,7 +1071,22 @@ app.post(
 
               prompt:
                 scene.videoPrompt ||
-                scene.description
+                scene.description ||
+                "Anime cette scène de manière cinématographique.",
+
+              image: {
+                imageBytes:
+                  imageData.data,
+
+                mimeType:
+                  imageData.mimeType ||
+                  "image/png"
+              },
+
+              config: {
+                aspectRatio:
+                  "16:9"
+              }
             });
 
           const videoId =
@@ -1054,7 +1100,9 @@ app.post(
                 project.id,
               scene:
                 scene.number,
-              operation
+              operation,
+              status:
+                "processing"
             }
           );
 
@@ -1094,6 +1142,11 @@ app.post(
       });
 
     } catch (error) {
+      console.error(
+        "Erreur /api/animate :",
+        error
+      );
+
       res.status(500).json({
         success: false,
         error:
@@ -1102,8 +1155,7 @@ app.post(
     }
   }
 );
-
-/* =========================================================
+/*==========================================================
    JOBS
 ========================================================= */
 
