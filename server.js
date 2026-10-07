@@ -13,7 +13,7 @@ app.use(express.json({ limit: "120mb" }));
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
 
-const MODEL = "gemini-3.8-flash";
+const MODEL = "gemini-3.7-flash";
 const IMAGE_MODEL = "gemini-3.1-flash-image";
 const VIDEO_MODEL = "veo-3.1-generate-preview";
 
