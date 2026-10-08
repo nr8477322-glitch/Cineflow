@@ -156,11 +156,35 @@ async function followVideoOperation(
         outputPath
     });
 
-    video.status =
+   video.status =
+  "ready";
+
+video.filePath =
+  outputPath;
+
+const project =
+  projects.find(
+    (item) =>
+      item.id ===
+      video.projectId
+  );
+
+if (project && project.videos) {
+  const projectVideo =
+    project.videos.find(
+      (item) =>
+        item.id ===
+        videoId
+    );
+
+  if (projectVideo) {
+    projectVideo.status =
       "ready";
 
-    video.filePath =
+    projectVideo.filePath =
       outputPath;
+  }
+}
 
     video.operation =
       operation;
@@ -5166,10 +5190,196 @@ async function animateProject(){
       data.videos || [];
 
     alert(
-      "🎞️ Animation des scènes lancée."
+      "🎞️ Les 5 animations sont lancées.\n\nCineflow va maintenant suivre automatiquement leur progression."
     );
 
     loadEverything();
+
+    var videosReady =
+      false;
+
+    while(!videosReady){
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            10000
+          )
+      );
+
+      var projectResponse =
+        await fetch(
+          "/api/project/" +
+          currentProject.id
+        );
+
+      var projectData =
+        await projectResponse.json();
+
+      if(!projectResponse.ok){
+
+        throw new Error(
+          projectData.error ||
+          "Impossible de suivre le projet."
+        );
+
+      }
+
+      currentProject =
+        projectData.project;
+
+      var projectVideos =
+        currentProject.videos ||
+        [];
+
+      var errors =
+        projectVideos.filter(
+          (video) =>
+            video.status ===
+            "error"
+        );
+
+      if(errors.length > 0){
+
+        throw new Error(
+          "Une ou plusieurs scènes ont échoué."
+        );
+
+      }
+
+      videosReady =
+        projectVideos.length === 5 &&
+        projectVideos.every(
+          (video) =>
+            video.status ===
+            "ready"
+        );
+
+      console.log(
+        "🎬 Progression vidéo :",
+        projectVideos.map(
+          (video) =>
+            `Scène ${video.scene}: ${video.status}`
+        )
+      );
+
+    }
+
+    alert(
+      "✅ Les 5 scènes sont prêtes !\n\nCineflow lance maintenant le montage final."
+    );
+
+    var finalResponse =
+      await fetch(
+        "/api/final-video",
+        {
+          method:"POST",
+
+          headers:{
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              projectId:
+                currentProject.id
+            })
+        }
+      );
+
+    var finalData =
+      await finalResponse.json();
+
+    if(!finalResponse.ok){
+
+      throw new Error(
+        finalData.error ||
+        "Montage final impossible."
+      );
+
+    }
+
+    var jobId =
+      finalData.jobId;
+
+    var finalReady =
+      false;
+
+    while(!finalReady){
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            5000
+          )
+      );
+
+      var jobsResponse =
+        await fetch(
+          "/api/jobs"
+        );
+
+      var jobsData =
+        await jobsResponse.json();
+
+      var job =
+        (jobsData.jobs || [])
+          .find(
+            (item) =>
+              item.id ===
+              jobId
+          );
+
+      if(!job){
+
+        continue;
+
+      }
+
+      console.log(
+        "🎞️ Montage final :",
+        job.status,
+        job.progress
+      );
+
+      if(
+        job.status ===
+        "error"
+      ){
+
+        throw new Error(
+          job.error ||
+          "Le montage final a échoué."
+        );
+
+      }
+
+      finalReady =
+        job.status ===
+        "ready";
+
+      if(finalReady){
+
+        currentProject.finalVideo = {
+          path:
+            job.filePath,
+
+          jobId:
+            jobId
+        };
+
+      }
+
+    }
+
+    loadEverything();
+
+    alert(
+      "🎉 Film final terminé !\n\nTon film de 5 scènes est maintenant prêt."
+    );
 
   }catch(error){
 
