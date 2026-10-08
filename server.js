@@ -76,7 +76,122 @@ function makeId(prefix) {
     Math.random().toString(36).slice(2, 8)
   );
 }
+async function followVideoOperation(
+  videoId
+) {
+  const video =
+    generatedVideos.get(videoId);
 
+  if (!video) {
+    return;
+  }
+
+  try {
+    let operation =
+      video.operation;
+
+    console.log(
+      `⏳ Suivi Veo scène ${video.scene}...`
+    );
+
+    while (!operation.done) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(resolve, 10000)
+      );
+
+      operation =
+        await ai.operations.getVideosOperation({
+          operation
+        });
+
+      video.operation =
+        operation;
+
+      generatedVideos.set(
+        videoId,
+        video
+      );
+
+      console.log(
+        `⏳ Scène ${video.scene}: ${
+          operation.done
+            ? "terminée"
+            : "encore en cours"
+        }`
+      );
+    }
+
+    if (operation.error) {
+      throw new Error(
+        operation.error.message ||
+        "Veo a échoué."
+      );
+    }
+
+    const generatedVideo =
+      operation.response
+        ?.generatedVideos?.[0];
+
+    if (
+      !generatedVideo ||
+      !generatedVideo.video
+    ) {
+      throw new Error(
+        "Veo a terminé mais aucune vidéo n'a été retournée."
+      );
+    }
+
+    const outputPath =
+      path.join(
+        os.tmpdir(),
+        `${videoId}.mp4`
+      );
+
+    await ai.files.download({
+      file:
+        generatedVideo.video,
+
+      downloadPath:
+        outputPath
+    });
+
+    video.status =
+      "ready";
+
+    video.filePath =
+      outputPath;
+
+    video.operation =
+      operation;
+
+    generatedVideos.set(
+      videoId,
+      video
+    );
+
+    console.log(
+      `✅ MP4 scène ${video.scene} sauvegardé : ${outputPath}`
+    );
+
+  } catch (error) {
+    video.status =
+      "error";
+
+    video.error =
+      error.message;
+
+    generatedVideos.set(
+      videoId,
+      video
+    );
+
+    console.error(
+      `❌ Erreur vidéo scène ${video.scene}:`,
+      error
+    );
+  }
+        }
 function cleanJson(text) {
   if (!text) return null;
 
@@ -1064,7 +1179,7 @@ app.post(
             );
           }
 
-          const operation =
+          let operation =
             await ai.models.generateVideos({
               model:
                 VIDEO_MODEL,
@@ -1072,7 +1187,7 @@ app.post(
               prompt:
                 scene.videoPrompt ||
                 scene.description ||
-                "Anime cette scène de manière cinématographique.",
+                "Cinematic scene.",
 
               image: {
                 imageBytes:
@@ -1105,7 +1220,9 @@ app.post(
                 "processing"
             }
           );
-
+followVideoOperation(
+  videoId
+);
           videos.push({
             id: videoId,
             scene:
@@ -1114,7 +1231,16 @@ app.post(
               "processing"
           });
 
+          console.log(
+            `🎬 Scène ${scene.number}: génération Veo lancée.`
+          );
+
         } catch (error) {
+          console.error(
+            `Erreur scène ${scene.number}:`,
+            error
+          );
+
           videos.push({
             scene:
               scene.number,
@@ -1134,10 +1260,13 @@ app.post(
       project.status =
         "animation_processing";
 
-      project.progress = 75;
+      project.progress =
+        75;
 
       res.json({
-        success: true,
+        success:
+          true,
+
         videos
       });
 
@@ -1148,7 +1277,9 @@ app.post(
       );
 
       res.status(500).json({
-        success: false,
+        success:
+          false,
+
         error:
           error.message
       });
