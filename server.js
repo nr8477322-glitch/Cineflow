@@ -1307,15 +1307,274 @@ app.get(
 /* =========================================================
    FINAL VIDEO
 ========================================================= */
-
 app.post(
   "/api/final-video",
+  async (req, res) => {
+    try {
+      const project =
+        projects.find(
+          (item) =>
+            item.id ===
+            req.body.projectId
+        );
+
+      if (!project) {
+        return res.status(404).json({
+          error:
+            "Projet introuvable."
+        });
+      }
+
+      if (
+        !project.videos ||
+        project.videos.length !== 5
+      ) {
+        return res.status(400).json({
+          error:
+            "Les 5 scènes doivent être générées avant le montage."
+        });
+      }
+
+      const sceneVideos = [];
+
+      for (
+        const sceneVideo of project.videos
+      ) {
+        const video =
+          generatedVideos.get(
+            sceneVideo.id
+          );
+
+        if (
+          !video ||
+          video.status !== "ready" ||
+          !video.filePath
+        ) {
+          return res.status(400).json({
+            error:
+              `La vidéo de la scène ${sceneVideo.scene} n'est pas encore prête.`
+          });
+        }
+
+        if (
+          !fs.existsSync(
+            video.filePath
+          )
+        ) {
+          return res.status(400).json({
+            error:
+              `Fichier MP4 manquant pour la scène ${sceneVideo.scene}.`
+          });
+        }
+
+        sceneVideos.push(
+          video
+        );
+      }
+
+      sceneVideos.sort(
+        (a, b) =>
+          Number(a.scene) -
+          Number(b.scene)
+      );
+
+      project.status =
+        "montage";
+
+      project.progress =
+        90;
+
+      const jobId =
+        makeId("render");
+
+      const outputPath =
+        path.join(
+          os.tmpdir(),
+          `${project.id}-final.mp4`
+        );
+
+      const listPath =
+        path.join(
+          os.tmpdir(),
+          `${project.id}-concat.txt`
+        );
+
+      const concatList =
+        sceneVideos
+          .map(
+            (video) =>
+              `file '${video.filePath.replace(
+                /'/g,
+                "'\\''"
+              )}'`
+          )
+          .join("\n");
+
+      fs.writeFileSync(
+        listPath,
+        concatList
+      );
+
+      jobs.set(
+        jobId,
+        {
+          id:
+            jobId,
+
+          projectId:
+            project.id,
+
+          type:
+            "final-video",
+
+          status:
+            "processing",
+
+          progress:
+            90,
+
+          createdAt:
+            new Date().toISOString()
+        }
+      );
+
+      res.json({
+        success:
+          true,
+
+        jobId,
+
+        status:
+          "processing"
+      });
+
+      execFile(
+        ffmpegPath,
+        [
+          "-y",
+
+          "-f",
+          "concat",
+
+          "-safe",
+          "0",
+
+          "-i",
+          listPath,
+
+          "-c:v",
+          "libx264",
+
+          "-preset",
+          "veryfast",
+
+          "-crf",
+          "23",
+
+          "-c:a",
+          "aac",
+
+          "-movflags",
+          "+faststart",
+
+          outputPath
+        ],
+        (error) => {
+          const job =
+            jobs.get(jobId);
+
+          if (!job) {
+            return;
+          }
+
+          if (error) {
+            console.error(
+              "❌ Erreur FFmpeg :",
+              error
+            );
+
+            job.status =
+              "error";
+
+            job.error =
+              error.message;
+
+            project.status =
+              "error";
+
+            jobs.set(
+              jobId,
+              job
+            );
+
+            return;
+          }
+
+          job.status =
+            "ready";
+
+          job.progress =
+            100;
+
+          job.filePath =
+            outputPath;
+
+          project.status =
+            "ready";
+
+          project.progress =
+            100;
+
+          project.finalVideo = {
+            path:
+              outputPath,
+
+            jobId,
+
+            createdAt:
+              new Date().toISOString()
+          };
+
+          jobs.set(
+            jobId,
+            job
+          );
+
+          console.log(
+            `🎬 Film final créé : ${outputPath}`
+          );
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        "Erreur /api/final-video :",
+        error
+      );
+
+      res.status(500).json({
+        success:
+          false,
+
+    error:
+  error.message
+});
+}
+}
+);
+
+/* =========================================================
+   FINAL VIDEO FILE
+========================================================= */
+
+app.get(
+  "/api/final-video/:projectId",
   (req, res) => {
     const project =
       projects.find(
         (item) =>
           item.id ===
-          req.body.projectId
+          req.params.projectId
       );
 
     if (!project) {
@@ -1325,46 +1584,32 @@ app.post(
       });
     }
 
-    project.status =
-      "montage";
+    if (
+      !project.finalVideo ||
+      !project.finalVideo.path
+    ) {
+      return res.status(404).json({
+        error:
+          "La vidéo finale n'est pas encore disponible."
+      });
+    }
 
-    project.progress = 90;
+    if (
+      !fs.existsSync(
+        project.finalVideo.path
+      )
+    ) {
+      return res.status(404).json({
+        error:
+          "Fichier vidéo final introuvable."
+      });
+    }
 
-    const jobId =
-      makeId("render");
-
-    jobs.set(
-      jobId,
-      {
-        id: jobId,
-
-        projectId:
-          project.id,
-
-        type:
-          "final-video",
-
-        status:
-          "processing",
-
-        progress: 90,
-
-        createdAt:
-          new Date().toISOString()
-      }
+    res.sendFile(
+      project.finalVideo.path
     );
-
-    res.json({
-      success: true,
-
-      jobId,
-
-      status:
-        "processing"
-    });
   }
 );
-
 /* =========================================================
    FORMATS
 ========================================================= */
