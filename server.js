@@ -5257,14 +5257,8 @@ async function animateProject(){
         );
 
       console.log(
-        "🎬 Progression vidéo :",
-        projectVideos.map(
-          (video) =>
-            `Scène ${video.scene}: ${video.status}`
-        )
-      );
-
-    }
+  "🎬 Progression vidéo :"
+);
 
     alert(
       "✅ Les 5 scènes sont prêtes !\n\nCineflow lance maintenant le montage final."
