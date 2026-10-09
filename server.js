@@ -5256,13 +5256,17 @@ async function animateProject(){
             "ready"
         );
 
-      console.log(
+      
+console.log(
   "🎬 Progression vidéo :"
 );
 
-    alert(
-      "✅ Les 5 scènes sont prêtes !\n\nCineflow lance maintenant le montage final."
-    );
+}
+
+alert(
+  "✅ Les 5 scènes sont prêtes !\n\nCineflow lance maintenant le montage final."
+);
+
 
     var finalResponse =
       await fetch(
