@@ -320,7 +320,7 @@ async function generateImage(prompt) {
     mimeType: "image/png",
     data: result.result.image
   };
-
+}
 
 /* =========================================================
    FFMPEG
