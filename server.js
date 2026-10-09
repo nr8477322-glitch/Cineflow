@@ -13,6 +13,15 @@ app.use(express.json({ limit: "120mb" }));
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
 
+const CLOUDFLARE_API_TOKEN =
+  process.env.CLOUDFLARE_API_TOKEN;
+
+const CLOUDFLARE_ACCOUNT_ID =
+  process.env.CLOUDFLARE_ACCOUNT_ID;
+
+const CLOUDFLARE_IMAGE_MODEL =
+  "@cf/black-forest-labs/flux-2-klein-4b";
+
 const MODEL = "gemini-3.7-flash";
 const IMAGE_MODEL = "gemini-3.1-flash-image";
 const VIDEO_MODEL = "veo-3.1-generate-preview";
@@ -273,46 +282,45 @@ async function generateText(prompt) {
    IMAGE GENERATION
 ========================================================= */
 
+
 async function generateImage(prompt) {
-  if (!ai) {
-    throw new Error("GEMINI_API_KEY manquante.");
-  }
-
-  const interaction = await ai.interactions.create({
-    model: IMAGE_MODEL,
-    input: prompt,
-    response_format: {
-  type: "image",
-  mime_type: "image/jpeg",
-  aspect_ratio: "16:9",
-  image_size: "1K"
-    }
-  });
-
-  const output = interaction?.output || [];
-
-  const imageOutput = output.find(
-    (item) =>
-      item?.type === "image" ||
-      item?.type === "image_generation"
-  );
-
-  const base64 =
-    imageOutput?.data ||
-    interaction?.output_image?.data ||
-    null;
-
-  if (!base64) {
+  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ACCOUNT_ID) {
     throw new Error(
-      "Gemini n'a pas retourné l'image."
+      "Configuration Cloudflare manquante dans Render."
     );
   }
 
-  return {
+  const form = new FormData();
+  form.append("prompt", prompt);
+  form.append("width", "1024");
+  form.append("height", "576");
+
+  const url =
+    `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/${CLOUDFLARE_IMAGE_MODEL}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`
+    },
+    body: form
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success || !result.result?.image) {
+    const message =
+      result.errors?.map(e => e.message).join("; ") ||
+      "Cloudflare n'a pas retourné d'image.";
+
+    throw new Error(message);
+  }
+
+    return {
     mimeType: "image/png",
-    data: base64
+    data: result.result.image
   };
-}
+
 
 /* =========================================================
    FFMPEG
