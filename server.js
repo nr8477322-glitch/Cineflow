@@ -1340,8 +1340,121 @@ app.get(
   }
 );
 
-/* =========================================================
-   FINAL VIDEO
+async function buildImageMontage(project, jobId) {
+  const job = jobs.get(jobId);
+
+  if (!job) {
+    throw new Error("Tâche de montage introuvable.");
+  }
+
+  const outputPath = path.join(
+    os.tmpdir(),
+    `${jobId}.mp4`
+  );
+
+  const concatPath = path.join(
+    os.tmpdir(),
+    `${jobId}-images.txt`
+  );
+
+  const clipPaths = [];
+
+  try {
+    const images = (project.images || [])
+      .filter(
+        (img) =>
+          img.status === "generated" &&
+          img.id &&
+          generatedImages.has(img.id)
+      )
+      .sort(
+        (a, b) =>
+          Number(a.scene) - Number(b.scene)
+      );
+
+    if (images.length !== 5) {
+      throw new Error("Il faut exactement 5 images.");
+    }
+
+    for (let i = 0; i < images.length; i++) {
+      const image = generatedImages.get(images[i].id);
+
+      const imagePath = saveImageFile(image.data);
+
+      const clipPath = path.join(
+        os.tmpdir(),
+        `${jobId}-scene-${i + 1}.mp4`
+      );
+
+      await runFFmpeg([
+        "-y",
+        "-loop", "1",
+        "-framerate", "25",
+        "-i", imagePath,
+        "-vf",
+        "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,zoompan=z='min(zoom+0.0015,1.12)':d=125:s=1280x720:fps=25,format=yuv420p",
+        "-t", "5",
+        "-an",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "25",
+        "-pix_fmt", "yuv420p",
+        clipPath
+      ]);
+
+      clipPaths.push(clipPath);
+
+      job.progress = 10 + (i + 1) * 15;
+      jobs.set(jobId, job);
+    }
+
+    fs.writeFileSync(
+      concatPath,
+      clipPaths
+        .map((file) => `file '${file}'`)
+        .join("\n")
+    );
+
+    await runFFmpeg([
+      "-y",
+      "-f", "concat",
+      "-safe", "0",
+      "-i", concatPath,
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-pix_fmt", "yuv420p",
+      "-movflags", "+faststart",
+      outputPath
+    ]);
+
+    job.status = "ready";
+    job.progress = 100;
+    job.filePath = outputPath;
+
+    project.status = "ready";
+    project.progress = 100;
+    project.finalVideo = {
+      path: outputPath,
+      jobId,
+      createdAt: new Date().toISOString()
+    };
+
+    jobs.set(jobId, job);
+
+    console.log("Montage de secours terminé :", outputPath);
+
+  } catch (error) {
+    job.status = "error";
+    job.error = error.message;
+    project.status = "error";
+
+    jobs.set(jobId, job);
+
+    console.error("Erreur montage images :", error);
+    throw error;
+  }
+}/* =========================================================
+ FINAL VIDEO
 ========================================================= */
 app.post(
   "/api/final-video",
@@ -1361,6 +1474,61 @@ app.post(
         });
       }
 
+      // MONTAGE DE SECOURS À PARTIR DES IMAGES
+      if (req.body.mode === "images") {
+        const images =
+          (project.images || []).filter(
+            (img) =>
+              img.status === "generated" &&
+              img.id &&
+              generatedImages.has(img.id)
+          );
+
+        if (images.length !== 5) {
+          return res.status(400).json({
+            success: false,
+            error:
+              "Il faut 5 images disponibles. Images trouvées : " +
+              images.length +
+              "/5."
+          });
+        }
+
+        const jobId = makeId("render");
+
+        jobs.set(jobId, {
+          id: jobId,
+          projectId: project.id,
+          type: "image-montage",
+          status: "processing",
+          progress: 5,
+          createdAt: new Date().toISOString()
+        });
+
+        project.status = "montage_images";
+        project.progress = 5;
+
+        res.json({
+          success: true,
+          jobId,
+          status: "processing",
+          mode: "images"
+        });
+
+        buildImageMontage(
+          project,
+          jobId
+        ).catch((error) => {
+          console.error(
+            "Erreur montage de secours :",
+            error
+          );
+        });
+
+        return;
+      }
+
+      // VÉRIFIER LES 5 VIDÉOS
       if (
         !project.videos ||
         project.videos.length !== 5
@@ -1403,9 +1571,7 @@ app.post(
           });
         }
 
-        sceneVideos.push(
-          video
-        );
+        sceneVideos.push(video);
       }
 
       sceneVideos.sort(
@@ -1414,105 +1580,67 @@ app.post(
           Number(b.scene)
       );
 
-      project.status =
-        "montage";
-
-      project.progress =
-        90;
-
       const jobId =
         makeId("render");
 
       const outputPath =
         path.join(
           os.tmpdir(),
-          `${project.id}-final.mp4`
-        );
-
-      const listPath =
-        path.join(
-          os.tmpdir(),
-          `${project.id}-concat.txt`
+          `${jobId}.mp4`
         );
 
       const concatList =
+        path.join(
+          os.tmpdir(),
+          `${jobId}.txt`
+        );
+
+      fs.writeFileSync(
+        concatList,
         sceneVideos
           .map(
             (video) =>
-              `file '${video.filePath.replace(
-                /'/g,
-                "'\\''"
-              )}'`
+              `file '${video.filePath.replace(/'/g, "'\\''")}'`
           )
-          .join("\n");
-
-      fs.writeFileSync(
-        listPath,
-        concatList
+          .join("\n")
       );
 
-      jobs.set(
-        jobId,
-        {
-          id:
-            jobId,
+      jobs.set(jobId, {
+        id: jobId,
+        projectId: project.id,
+        type: "final-video",
+        status: "processing",
+        progress: 90,
+        createdAt: new Date().toISOString()
+      });
 
-          projectId:
-            project.id,
-
-          type:
-            "final-video",
-
-          status:
-            "processing",
-
-          progress:
-            90,
-
-          createdAt:
-            new Date().toISOString()
-        }
-      );
+      project.status = "montage";
+      project.progress = 90;
 
       res.json({
-        success:
-          true,
-
+        success: true,
         jobId,
-
-        status:
-          "processing"
+        status: "processing"
       });
 
       execFile(
         ffmpegPath,
         [
           "-y",
-
           "-f",
           "concat",
-
           "-safe",
           "0",
-
           "-i",
-          listPath,
-
+          concatList,
           "-c:v",
           "libx264",
-
-          "-preset",
-          "veryfast",
-
-          "-crf",
-          "23",
-
+          "-pix_fmt",
+          "yuv420p",
           "-c:a",
           "aac",
-
           "-movflags",
           "+faststart",
-
           outputPath
         ],
         (error) => {
@@ -1529,52 +1657,30 @@ app.post(
               error
             );
 
-            job.status =
-              "error";
+            job.status = "error";
+            job.error = error.message;
 
-            job.error =
-              error.message;
+            project.status = "error";
 
-            project.status =
-              "error";
-
-            jobs.set(
-              jobId,
-              job
-            );
-
+            jobs.set(jobId, job);
             return;
           }
 
-          job.status =
-            "ready";
+          job.status = "ready";
+          job.progress = 100;
+          job.filePath = outputPath;
 
-          job.progress =
-            100;
-
-          job.filePath =
-            outputPath;
-
-          project.status =
-            "ready";
-
-          project.progress =
-            100;
+          project.status = "ready";
+          project.progress = 100;
 
           project.finalVideo = {
-            path:
-              outputPath,
-
+            path: outputPath,
             jobId,
-
             createdAt:
               new Date().toISOString()
           };
 
-          jobs.set(
-            jobId,
-            job
-          );
+          jobs.set(jobId, job);
 
           console.log(
             `🎬 Film final créé : ${outputPath}`
@@ -1588,15 +1694,14 @@ app.post(
         error
       );
 
-      res.status(500).json({
-        success:
-          false,
-
-    error:
-  error.message
-});
-}
-}
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    }
+  }
 );
 
 /* =========================================================
