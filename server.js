@@ -1148,21 +1148,20 @@ app.post(
 /* =========================================================
    ANIMATION
 ========================================================= */
+
 app.post(
   "/api/animate",
   async (req, res) => {
     try {
-      const project =
-        projects.find(
-          (item) =>
-            item.id ===
-            req.body.projectId
-        );
+      const project = projects.find(
+        (item) =>
+          item.id === req.body.projectId
+      );
 
       if (!project) {
         return res.status(404).json({
-          error:
-            "Projet introuvable."
+          success: false,
+          error: "Projet introuvable."
         });
       }
 
@@ -1181,12 +1180,12 @@ app.post(
         );
       }
 
-      const videos = [];
+      // Vérifier les 5 images AVANT
+      // de lancer la génération vidéo.
+      const imageErrors = [];
 
-      for (
-        const scene of project.scenes
-      ) {
-        try {
+      const sceneImages =
+        project.scenes.map((scene) => {
           const imageRecord =
             project.images?.find(
               (img) =>
@@ -1194,10 +1193,16 @@ app.post(
                 Number(scene.number)
             );
 
-          if (!imageRecord) {
-            throw new Error(
-              `Image manquante pour la scène ${scene.number}.`
+          if (
+            !imageRecord ||
+            imageRecord.status !== "generated" ||
+            !imageRecord.id
+          ) {
+            imageErrors.push(
+              Number(scene.number)
             );
+
+            return null;
           }
 
           const imageData =
@@ -1205,16 +1210,43 @@ app.post(
               imageRecord.id
             );
 
-          if (!imageData) {
-            throw new Error(
-              `Image introuvable pour la scène ${scene.number}.`
+          if (
+            !imageData ||
+            !imageData.data
+          ) {
+            imageErrors.push(
+              Number(scene.number)
             );
+
+            return null;
           }
 
-          let operation =
+          return {
+            scene,
+            imageData
+          };
+        });
+
+      if (imageErrors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Images indisponibles pour les scènes : " +
+            imageErrors.join(", ") +
+            ". Regénère ces images avant de lancer l'animation."
+        });
+      }
+
+      const videos = [];
+
+      for (const item of sceneImages) {
+        const scene = item.scene;
+        const imageData = item.imageData;
+
+        try {
+          const operation =
             await ai.models.generateVideos({
-              model:
-                VIDEO_MODEL,
+              model: VIDEO_MODEL,
 
               prompt:
                 scene.videoPrompt ||
@@ -1222,51 +1254,38 @@ app.post(
                 "Cinematic scene.",
 
               image: {
-                imageBytes:
-                  imageData.data,
-
+                imageBytes: imageData.data,
                 mimeType:
                   imageData.mimeType ||
                   "image/png"
               },
 
               config: {
-                aspectRatio:
-                  "16:9"
+                aspectRatio: "16:9"
               }
             });
 
-          const videoId =
-            makeId("video");
+          const videoId = makeId("video");
 
-          generatedVideos.set(
-            videoId,
-            {
-              id: videoId,
-              projectId:
-                project.id,
-              scene:
-                scene.number,
-              operation,
-              status:
-                "processing"
-            }
-          );
-followVideoOperation(
-  videoId
-);
+          generatedVideos.set(videoId, {
+            id: videoId,
+            projectId: project.id,
+            scene: scene.number,
+            operation,
+            status: "processing"
+          });
+
+          followVideoOperation(videoId);
+
           videos.push({
             id: videoId,
-            scene:
-              scene.number,
-            status:
-              "processing"
+            scene: scene.number,
+            status: "processing"
           });
 
           console.log(
             `🎬 Scène ${scene.number}: génération Veo lancée.`
           );
-
         } catch (error) {
           console.error(
             `Erreur scène ${scene.number}:`,
@@ -1274,50 +1293,35 @@ followVideoOperation(
           );
 
           videos.push({
-            scene:
-              scene.number,
-
-            status:
-              "error",
-
-            error:
-              error.message
+            scene: scene.number,
+            status: "error",
+            error: error.message
           });
         }
       }
 
-      project.videos =
-        videos;
+      project.videos = videos;
+      project.status = "animation_processing";
+      project.progress = 75;
 
-      project.status =
-        "animation_processing";
-
-      project.progress =
-        75;
-
-      res.json({
-        success:
-          true,
-
+      return res.json({
+        success: true,
         videos
       });
-
     } catch (error) {
       console.error(
         "Erreur /api/animate :",
         error
       );
 
-      res.status(500).json({
-        success:
-          false,
-
-        error:
-          error.message
+      return res.status(500).json({
+        success: false,
+        error: error.message
       });
     }
   }
 );
+
 /*==========================================================
    JOBS
 ========================================================= */
