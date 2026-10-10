@@ -5241,28 +5241,45 @@ async function animateProject(){
         currentProject.videos ||
         [];
 
+         var videosSettled =
+        projectVideos.length === 5 &&
+        projectVideos.every(
+          (video) =>
+            video.status === "ready" ||
+            video.status === "error"
+        );
+
+      if (!videosSettled) {
+        continue;
+      }
+
       var errors =
         projectVideos.filter(
           (video) =>
-            video.status ===
-            "error"
+            video.status === "error"
         );
 
-      if(errors.length > 0){
+      if (errors.length > 0) {
+        var failedScenes = errors
+          .map((video) => video.scene)
+          .join(", ");
 
-        throw new Error(
-          "Une ou plusieurs scènes ont échoué."
+        alert(
+          "Certaines scènes ont échoué : " +
+          failedScenes +
+          ".\n\nLes scènes réussies sont conservées. Il faudra relancer les scènes en échec avant le montage final."
         );
 
+        loadEverything();
+        return;
       }
 
       videosReady =
         projectVideos.length === 5 &&
         projectVideos.every(
           (video) =>
-            video.status ===
-            "ready"
-        );
+            video.status === "ready"
+        ); 
 
       
 console.log(
