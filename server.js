@@ -1453,7 +1453,8 @@ async function buildImageMontage(project, jobId) {
     console.error("Erreur montage images :", error);
     throw error;
   }
-}/* =========================================================
+}
+/* =========================================================
  FINAL VIDEO
 ========================================================= */
 app.post(
@@ -5349,7 +5350,7 @@ async function animateProject(){
       var projectVideos =
         currentProject.videos ||
         [];
-
+        
          var videosSettled =
         projectVideos.length === 5 &&
         projectVideos.every(
@@ -5368,20 +5369,106 @@ async function animateProject(){
             video.status === "error"
         );
 
+   
+  
       if (errors.length > 0) {
         var failedScenes = errors
           .map((video) => video.scene)
           .join(", ");
 
         alert(
-          "Certaines scènes ont échoué : " +
+          "Certaines animations ont échoué (scènes : " +
           failedScenes +
-          ".\n\nLes scènes réussies sont conservées. Il faudra relancer les scènes en échec avant le montage final."
+          "). Cineflow va tenter un montage de secours avec les images."
         );
 
-        loadEverything();
+        try {
+          var fallbackResponse = await fetch(
+            "/api/final-video",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                projectId: currentProject.id,
+                mode: "images"
+              })
+            }
+          );
+
+          var fallbackData =
+            await fallbackResponse.json();
+
+          if (
+            !fallbackResponse.ok ||
+            !fallbackData.jobId
+          ) {
+            throw new Error(
+              fallbackData.error ||
+              "Impossible de démarrer le montage de secours."
+            );
+          }
+
+          var fallbackReady = false;
+
+          while (!fallbackReady) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 3000)
+            );
+
+            var jobsResponse = await fetch(
+              "/api/jobs"
+            );
+
+            var jobsData =
+              await jobsResponse.json();
+
+            if (!jobsResponse.ok) {
+              throw new Error(
+                "Impossible de suivre le montage de secours."
+              );
+            }
+
+            var fallbackJob =
+              (jobsData.jobs || []).find(
+                (job) =>
+                  job.id === fallbackData.jobId
+              );
+
+            if (!fallbackJob) {
+              throw new Error(
+                "Tâche de montage introuvable."
+              );
+            }
+
+            if (fallbackJob.status === "error") {
+              throw new Error(
+                fallbackJob.error ||
+                "Le montage de secours a échoué."
+              );
+            }
+
+            fallbackReady =
+              fallbackJob.status === "ready";
+          }
+
+          loadEverything();
+
+          alert(
+            "🎉 Montage de secours terminé !\n\nCineflow a créé une vidéo à partir des images disponibles. Ce montage est un diaporama animé, pas les animations Veo manquantes."
+          );
+        } catch (fallbackError) {
+          alert(
+            "Le montage de secours a échoué : " +
+            fallbackError.message
+          );
+        }
+
         return;
       }
+
+
 
       videosReady =
         projectVideos.length === 5 &&
