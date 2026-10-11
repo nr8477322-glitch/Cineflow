@@ -15,6 +15,24 @@ const pool = process.env.DATABASE_URL
     })
   : null;
 
+const databaseReady = pool
+  ? pool.query(`
+      CREATE TABLE IF NOT EXISTS cineflow_projects (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+      .then(() => {
+        console.log("Neon : table des projets prête.");
+        return true;
+      })
+      .catch((error) => {
+        console.error("Erreur Neon :", error.message);
+        return false;
+      })
+  : Promise.resolve(false);
+
 const app = express();
 
 app.use(express.json({ limit: "120mb" }));
