@@ -66,7 +66,34 @@ const jobs = new Map();
 const generatedImages = new Map();
 const generatedVideos = new Map();
 const series = [];
+async function saveProjectToDatabase(project) {
+  if (!pool || !project) {
+    return false;
+  }
 
+  try {
+    await databaseReady;
+
+    await pool.query(
+      `INSERT INTO cineflow_projects (id, data, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (id)
+       DO UPDATE SET
+         data = EXCLUDED.data,
+         updated_at = NOW()`,
+      [project.id, JSON.stringify(project)]
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Erreur de sauvegarde Neon :",
+      error.message
+    );
+
+    return false;
+  }
+}
 const accounts = {
   youtube: false,
   tiktok: false,
@@ -1019,7 +1046,8 @@ app.post(
         )
           ? "images_ready"
           : "images_error";
-
+      await 
+  saveProjectToDatabase(project);
       res.json({
         success:
           results.some(
@@ -1401,7 +1429,9 @@ app.post(
       project.videos = videos;
       project.status = "animation_processing";
       project.progress = 75;
-
+      
+     await 
+  saveProjectToDatabase(project);
       return res.json({
         success: true,
         videos
@@ -1779,6 +1809,8 @@ app.post(
               new Date().toISOString()
           };
 
+          await 
+  saveProjectToDatabase(project);
           jobs.set(jobId, job);
 
           console.log(
