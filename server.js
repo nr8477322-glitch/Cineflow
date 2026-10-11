@@ -1771,8 +1771,8 @@ app.post(
           "-movflags",
           "+faststart",
           outputPath
-        ],
-        (error) => {
+    ],
+    async (error) => {
           const job =
             jobs.get(jobId);
 
