@@ -6,6 +6,15 @@ const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
 
+const { Pool } = require("pg");
+
+const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    })
+  : null;
+
 const app = express();
 
 app.use(express.json({ limit: "120mb" }));
