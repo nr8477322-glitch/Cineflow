@@ -1566,7 +1566,9 @@ async function buildImageMontage(project, jobId) {
       jobId,
       createdAt: new Date().toISOString()
     };
-
+    await 
+      saveProjectToDatabase(project);
+    
     jobs.set(jobId, job);
 
     console.log("Montage de secours terminé :", outputPath);
