@@ -5263,6 +5263,52 @@ function renderImages(project){
 
 }
 
+function renderFinalVideo(project){
+
+  var timeline =
+    document.getElementById("timeline");
+
+  if(!timeline || !project) return;
+
+  var videoUrl =
+    project.finalVideo &&
+    project.finalVideo.path
+      ? "/api/final-video/" +
+        encodeURIComponent(project.id)
+      : "";
+
+  if(!videoUrl) return;
+
+  var existing =
+    document.getElementById("cineflow-final-video");
+
+  if(existing) existing.remove();
+
+  var section =
+    document.createElement("div");
+
+  section.id = "cineflow-final-video";
+  section.className = "scene";
+
+  section.innerHTML =
+    '<div class="scene-body">' +
+      '<h3>🎬 Vidéo finale</h3>' +
+      '<video controls playsinline ' +
+        'style="width:100%;max-width:720px">' +
+        '<source src="' + videoUrl +
+        '" type="video/mp4">' +
+        'Ton navigateur ne prend pas en charge la vidéo.' +
+      '</video>' +
+      '<p><a href="' + videoUrl +
+        '" download="cineflow-video.mp4">' +
+        '⬇️ Télécharger la vidéo' +
+      '</a></p>' +
+    '</div>';
+
+  timeline.appendChild(section);
+
+}
+
 /* =========================================================
    REGENERATE SCENE
 ========================================================= */
@@ -5583,7 +5629,20 @@ async function animateProject(){
               fallbackJob.status === "ready";
           }
 
+        
           loadEverything();
+
+          if (
+            currentProject &&
+            currentProject.finalVideo &&
+            currentProject.finalVideo.path
+          ) {
+            renderFinalVideo(currentProject);
+          } else {
+            console.log(
+              "Vidéo de secours terminée : vérification du fichier final."
+            );
+          }
 
           alert(
             "🎉 Montage de secours terminé !\n\nCineflow a créé une vidéo à partir des images disponibles. Ce montage est un diaporama animé, pas les animations Veo manquantes."
@@ -5725,7 +5784,9 @@ alert(
     }
 
     loadEverything();
-
+    
+    renderFinalVideo(currentProject);
+    
     alert(
       "🎉 Film final terminé !\n\nTon film de 5 scènes est maintenant prêt."
     );
