@@ -737,6 +737,17 @@ app.post(
       project.progress = 30;
       project.status = "ready";
 
+if (pool) {
+  await pool.query(
+    `INSERT INTO cineflow_projects (id, data, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (id)
+     DO UPDATE SET data = EXCLUDED.data,
+                   updated_at = NOW()`,
+    [project.id, JSON.stringify(project)]
+  );
+}
+
       projects.unshift(project);
 
       res.json({
