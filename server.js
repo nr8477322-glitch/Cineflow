@@ -5744,131 +5744,115 @@ alert(
 /* =========================================================
    PROJECT LIST
 ========================================================= */
+async function selectProject(projectId) {
+  try {
+    var response = await fetch(
+      "/api/project/" + encodeURIComponent(projectId)
+    );
 
-async function loadProjects(){
+    var data = await response.json();
 
-  try{
-
-    var response =
-      await fetch(
-        "/api/projects"
+    if (!response.ok || !data.project) {
+      throw new Error(
+        data.error || "Impossible d'ouvrir le projet."
       );
-
-    var data =
-      await response.json();
-
-    var list =
-      data.projects || [];
-
-    var container =
-      document.getElementById(
-        "projectsList"
-      );
-
-    var count =
-      document.getElementById(
-        "projectCount"
-      );
-
-    if(!container || !count){
-      return;
     }
 
-    count.textContent =
-      list.length +
-      " projet" +
-      (
-        list.length > 1
-          ? "s"
-          : ""
-      );
+    currentProject = data.project;
 
-    if(!list.length){
+    if (
+      currentProject.images &&
+      currentProject.images.length > 0
+    ) {
+      renderImages(currentProject);
+    } else {
+      renderProject(currentProject);
+    }
+
+    var timeline = document.getElementById("timeline");
+
+    if (timeline) {
+      timeline.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+  } catch (error) {
+    console.error("Erreur ouverture projet :", error);
+    alert("Impossible d'ouvrir le projet : " + error.message);
+  }
+}
+
+async function loadProjects() {
+  try {
+    var response = await fetch("/api/projects");
+    var data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Erreur de chargement des projets."
+      );
+    }
+
+    var list = data.projects || [];
+    var container = document.getElementById("projectsList");
+    var count = document.getElementById("projectCount");
+
+    if (!container || !count) return;
+
+    count.textContent =
+      list.length + " projet" + (list.length > 1 ? "s" : "");
+
+    if (!list.length) {
+      container.innerHTML = "<p>Aucun projet enregistré.</p>";
       return;
     }
 
     var html = "";
 
-    list
-      .slice(0,6)
-      .forEach(
-        function(project){
-
-          var progress =
-            Math.max(
-              0,
-              Math.min(
-                100,
-                Number(
-                  project.progress ||
-                  0
-                )
-              )
-            );
-
-          var category =
-            escapeHtml(
-              (
-                project.category ||
-                "FILM"
-              ).toUpperCase()
-            );
-
-          var title =
-            escapeHtml(
-              project.title ||
-              "Projet Cineflow"
-            );
-
-          var status =
-            escapeHtml(
-              project.status ||
-              "Projet"
-            );
-
-          html +=
-            '<div class="project">' +
-
-              '<div class="cover">' +
-                '<span>' +
-                  category +
-                '</span>' +
-              '</div>' +
-
-              '<div class="project-body">' +
-
-                '<h3>' +
-                  title +
-                '</h3>' +
-
-                '<p>' +
-                  status +
-                '</p>' +
-
-                '<div class="progress">' +
-                  '<i style="width:' +
-                    progress +
-                  '%"></i>' +
-                '</div>' +
-
-              '</div>' +
-
-            '</div>';
-
-        }
+    list.slice(0, 6).forEach(function(project) {
+      var id = escapeHtml(String(project.id || ""));
+      var title = escapeHtml(
+        project.title || "Projet Cineflow"
+      );
+      var category = escapeHtml(
+        (project.category || "FILM").toUpperCase()
+      );
+      var status = escapeHtml(project.status || "Projet");
+      var progress = Math.max(
+        0,
+        Math.min(100, Number(project.progress || 0))
       );
 
-    container.innerHTML =
-      html;
+      html +=
+        '<div class="project" role="button" tabindex="0" ' +
+        'style="cursor:pointer" data-project-id="' + id + '" ' +
+        'onclick="selectProject(this.dataset.projectId)" ' +
+        'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){' +
+        'event.preventDefault();selectProject(this.dataset.projectId)}">' +
 
-  }catch(error){
+          '<div class="cover">' +
+            '<span>' + category + '</span>' +
+          '</div>' +
 
-    console.log(error);
+          '<div class="project-body">' +
+            '<h3>' + title + '</h3>' +
+            '<p>' + status + ' · Appuyer pour ouvrir</p>' +
+            '<div class="progress">' +
+              '<i style="width:' + progress + '%"></i>' +
+            '</div>' +
+          '</div>' +
 
+        '</div>';
+    });
+
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error("Erreur chargement projets :", error);
   }
-
 }
-
 /* =========================================================
    DASHBOARD
 ========================================================= */
