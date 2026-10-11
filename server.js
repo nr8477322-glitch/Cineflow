@@ -769,38 +769,98 @@ if (pool) {
    PROJECTS
 ========================================================= */
 
-app.get(
-  "/api/projects",
-  (req, res) => {
-    res.json({
-      success: true,
-      projects
-    });
-  }
-);
+app.get("/api/projects", async (req, res) => {
+  try {
+    if (pool) {
+      await databaseReady;
 
-app.get(
-  "/api/project/:id",
-  (req, res) => {
-    const project =
-      projects.find(
-        (item) =>
-          item.id === req.params.id
+      const result = await pool.query(
+        "SELECT data FROM cineflow_projects ORDER BY updated_at DESC"
       );
 
-    if (!project) {
-      return res.status(404).json({
-        error:
-          "Projet introuvable."
+      const savedProjects = result.rows.map(row => row.data);
+
+      for (const saved of savedProjects) {
+        const index = projects.findIndex(
+          project => project.id === saved.id
+        );
+
+        if (index === -1) {
+          projects.push(saved);
+        } else {
+          projects[index] = saved;
+        }
+      }
+
+      return res.json({
+        success: true,
+        projects: savedProjects
       });
     }
 
-    res.json({
+    return res.json({
+      success: true,
+      projects
+    });
+  } catch (error) {
+    console.error("Erreur de lecture Neon :", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de récupérer les projets."
+    });
+  }
+});
+
+app.get("/api/project/:id", async (req, res) => {
+  try {
+    let project = projects.find(
+      item => item.id === req.params.id
+    );
+
+    if (pool) {
+      await databaseReady;
+
+      const result = await pool.query(
+        "SELECT data FROM cineflow_projects WHERE id = $1",
+        [req.params.id]
+      );
+
+      if (result.rows.length > 0) {
+        project = result.rows[0].data;
+
+        const index = projects.findIndex(
+          item => item.id === project.id
+        );
+
+        if (index === -1) {
+          projects.push(project);
+        } else {
+          projects[index] = project;
+        }
+      }
+    }
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: "Projet introuvable."
+      });
+    }
+
+    return res.json({
       success: true,
       project
     });
+  } catch (error) {
+    console.error("Erreur de lecture du projet :", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de récupérer ce projet."
+    });
   }
-);
+});
 
 /* =========================================================
    SCENES
