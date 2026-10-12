@@ -1566,8 +1566,7 @@ async function buildImageMontage(project, jobId) {
       jobId,
       createdAt: new Date().toISOString()
     };
-    await 
-      saveProjectToDatabase(project);
+    await saveProjectToDatabase(project);
     
     jobs.set(jobId, job);
 
@@ -5632,19 +5631,34 @@ async function animateProject(){
           }
 
         
-          loadEverything();
+          
+          await loadEverything();
 
-          if (
-            currentProject &&
-            currentProject.finalVideo &&
-            currentProject.finalVideo.path
-          ) {
-            renderFinalVideo(currentProject);
-          } else {
-            console.log(
-              "Vidéo de secours terminée : vérification du fichier final."
+          var videoProjectResponse = await fetch(
+            "/api/project/" +
+            encodeURIComponent(currentProject.id)
+          );
+
+          if (!videoProjectResponse.ok) {
+            throw new Error(
+              "Impossible de récupérer le projet après le montage."
             );
           }
+
+          var videoProjectData =
+            await videoProjectResponse.json();
+
+          if (!videoProjectData.project) {
+            throw new Error(
+              "Projet introuvable après le montage."
+            );
+          }
+
+          currentProject =
+            videoProjectData.project;
+
+          renderFinalVideo(currentProject);
+
 
           alert(
             "🎉 Montage de secours terminé !\n\nCineflow a créé une vidéo à partir des images disponibles. Ce montage est un diaporama animé, pas les animations Veo manquantes."
