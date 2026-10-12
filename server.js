@@ -1543,17 +1543,78 @@ async function buildImageMontage(project, jobId) {
         .join("\n")
     );
 
-    await runFFmpeg([
-      "-y",
-      "-f", "concat",
-      "-safe", "0",
-      "-i", concatPath,
-      "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-pix_fmt", "yuv420p",
-      "-movflags", "+faststart",
-      outputPath
-    ]);
+    
+    // Créer une ambiance sonore simple selon le genre
+    const category = String(
+      project.category || "Film"
+    ).toLowerCase();
+
+    let notes = [130.81, 164.81, 196];
+
+    if (category.includes("action")) {
+      notes = [110, 138.59, 164.81];
+    } else if (
+      category.includes("drame") ||
+      category.includes("drama")
+    ) {
+      notes = [130.81, 155.56, 196];
+    } else if (category.includes("football")) {
+      notes = [110, 146.83, 220];
+    } else if (category.includes("animation")) {
+      notes = [261.63, 329.63, 392];
+    }
+
+    const audioExpression =
+      `0.08*sin(2*PI*${notes[0]}*t)` +
+      `*(0.7+0.3*sin(2*PI*0.12*t))` +
+      `+0.04*sin(2*PI*${notes[1]}*t)` +
+      `*(0.7+0.3*sin(2*PI*0.09*t))` +
+      `+0.02*sin(2*PI*${notes[2]}*t)`;
+
+    try {
+      await runFFmpeg([
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concatPath,
+        "-f", "lavfi",
+        "-i",
+        `aevalsrc=${audioExpression}:s=44100:d=25`,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-af",
+        "volume=0.5,afade=t=in:st=0:d=2,afade=t=out:st=22:d=3",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "96k",
+        "-shortest",
+        "-movflags", "+faststart",
+        outputPath
+      ]);
+
+      console.log("Ambiance sonore ajoutée.");
+
+    } catch (audioError) {
+      console.error(
+        "Audio indisponible, montage vidéo seul :",
+        audioError.message
+      );
+
+      await runFFmpeg([
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concatPath,
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        outputPath
+      ]);
+    }
+
 
     job.status = "ready";
     job.progress = 100;
