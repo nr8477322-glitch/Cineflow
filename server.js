@@ -1,4 +1,5 @@
 const express = require("express");
+const { Client } = require("magic-hour");
 const { GoogleGenAI } = require("@google/genai");
 const ffmpegPath = require("ffmpeg-static");
 const fs = require("fs");
@@ -636,6 +637,175 @@ app.get(
     }
   }
 );
+
+/* =========================================================
+   TEST MAGIC HOUR : ANIMER UNE SEULE SCENE
+========================================================= */
+
+app.post("/api/magic-hour/test-scene", async (req, res) => {
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      error: "MAGIC_HOUR_API_KEY manquante dans Render."
+    });
+  }
+
+  let inputPath;
+
+  try {
+    const project = projects.find(
+      (p) => p.id === req.body.projectId
+    );
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: "Projet introuvable."
+      });
+    }
+
+    const sceneNumber = Number(req.body.sceneNumber);
+    const scene = project.scenes?.find(
+      (s) => Number(s.number) === sceneNumber
+    );
+
+    const imageRecord = project.images?.find(
+      (img) => Number(img.scene) === sceneNumber
+    );
+
+    const imageData = imageRecord?.id
+      ? generatedImages.get(imageRecord.id)
+      : null;
+
+    if (!scene || !imageData?.data) {
+      return res.status(400).json({
+        success: false,
+        error: "Scène ou image introuvable. Choisis une scène dont l'image est déjà générée."
+      });
+    }
+
+    const videoId = makeId("magicvideo");
+    const outputDir = path.join(
+      os.tmpdir(),
+      "cineflow-magic-hour",
+      videoId
+    );
+
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    inputPath = path.join(
+      outputDir,
+      "source.png"
+    );
+
+    fs.writeFileSync(
+      inputPath,
+      Buffer.from(imageData.data, "base64")
+    );
+
+    const client = new Client({ token: apiKey });
+
+    const result = await client.v1.imageToVideo.generate(
+      {
+        name: `Cineflow scène ${sceneNumber}`,
+        endSeconds: 5,
+        resolution: "480p",
+        assets: {
+          imageFilePath: inputPath
+        },
+        style: {
+          prompt:
+            scene.videoPrompt ||
+            scene.description ||
+            "Mouvement cinématographique naturel, caméra fluide."
+        }
+      },
+      {
+        waitForCompletion: true,
+        downloadOutputs: true,
+        downloadDirectory: outputDir
+      }
+    );
+
+    const downloadedPaths =
+      result.downloadedPaths ||
+      result.downloaded_paths ||
+      [];
+
+    const videoPath = downloadedPaths.find(
+      (file) =>
+        typeof file === "string" &&
+        /\.(mp4|webm|mov)$/i.test(file)
+    );
+
+    if (
+      !videoPath ||
+      !fs.existsSync(videoPath)
+    ) {
+      console.error(
+        "Résultat Magic Hour sans fichier local :",
+        JSON.stringify({
+          id: result.id,
+          status: result.status
+        })
+      );
+
+      return res.status(502).json({
+        success: false,
+        error: "La tâche Magic Hour a répondu, mais le fichier vidéo local est introuvable. Consulte les logs Render."
+      });
+    }
+
+    generatedVideos.set(videoId, {
+      id: videoId,
+      projectId: project.id,
+      scene: sceneNumber,
+      provider: "magic-hour",
+      status: "ready",
+      filePath: videoPath
+    });
+
+    return res.json({
+      success: true,
+      provider: "magic-hour",
+      status: "ready",
+      scene: sceneNumber,
+      videoId,
+      previewUrl: `/api/magic-hour/preview/${videoId}`
+    });
+  } catch (error) {
+    console.error(
+      "Erreur test Magic Hour :",
+      error.message
+    );
+
+    return res.status(502).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/magic-hour/preview/:id", (req, res) => {
+  const video = generatedVideos.get(req.params.id);
+
+  if (
+    !video ||
+    video.provider !== "magic-hour" ||
+    video.status !== "ready" ||
+    !video.filePath ||
+    !fs.existsSync(video.filePath)
+  ) {
+    return res.status(404).json({
+      success: false,
+      error: "Vidéo de test introuvable sur cette instance."
+    });
+  }
+
+  return res.sendFile(video.filePath);
+});
 
 /* =========================================================
    CREATE PROJECT
