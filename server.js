@@ -1469,10 +1469,31 @@ app.get(
 );
 
 async function buildImageMontage(project, jobId) {
-  const job = jobs.get(jobId);
+  let job = jobs.get(jobId);
+
+  // Restaurer une tâche manquante si le projet existe encore
+  if (!job && project && project.id && jobId) {
+    job = {
+      id: jobId,
+      projectId: project.id,
+      type: "image-montage",
+      status: "processing",
+      progress: 5,
+      createdAt: new Date().toISOString()
+    };
+
+    jobs.set(jobId, job);
+
+    console.log(
+      "Tâche de montage restaurée :",
+      jobId
+    );
+  }
 
   if (!job) {
-    throw new Error("Tâche de montage introuvable.");
+    throw new Error(
+      "Impossible de restaurer la tâche de montage."
+    );
   }
 
   const outputPath = path.join(
