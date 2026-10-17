@@ -4492,9 +4492,15 @@ textarea{
       >
         🎞️ Animer les scènes
       </button>
-
+      <button
+        class="secondary"
+        id="magicHourTestButton"
+        onclick="testMagicHourSceneOne(this)"
+      >
+        🎬 Tester Magic Hour — scène 1
+      </button>
     </div>
-
+    <div id="magicHourTestResult" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#20232b;color:white"></div>
   </section>
 
   <!-- FORMATS -->
@@ -5236,6 +5242,81 @@ function renderProject(project){
 
   loadProjects();
 
+}
+
+/* =========================================================
+   TEST MAGIC HOUR : SCENE 1 UNIQUEMENT
+========================================================= */
+
+async function testMagicHourSceneOne(button) {
+  var resultBox = document.getElementById("magicHourTestResult");
+
+  if (!currentProject || !currentProject.id) {
+    alert("Ouvre d'abord Avant Minuit dans Mes projets.");
+    return;
+  }
+
+  var sceneOne = (currentProject.scenes || []).find(function(scene) {
+    return Number(scene.number) === 1;
+  });
+
+  if (!sceneOne) {
+    alert("La scène 1 est introuvable dans ce projet.");
+    return;
+  }
+
+  var oldLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "⏳ Test en cours...";
+
+  resultBox.style.display = "block";
+  resultBox.textContent =
+    "Envoi de la scène 1 à Magic Hour. Patiente pendant le traitement...";
+
+  try {
+    var response = await fetch("/api/magic-hour/test-scene", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        projectId: currentProject.id,
+        sceneNumber: 1
+      })
+    });
+
+    var data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.error || "Le test Magic Hour a échoué."
+      );
+    }
+
+    resultBox.textContent = "";
+
+    var message = document.createElement("p");
+    message.textContent =
+      "✅ La vidéo de test de la scène 1 est prête !";
+    resultBox.appendChild(message);
+
+    var link = document.createElement("a");
+    link.href = data.previewUrl;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "▶ Ouvrir la vidéo";
+    link.style.color = "#8ab4ff";
+    link.style.display = "inline-block";
+    link.style.marginTop = "10px";
+    resultBox.appendChild(link);
+
+  } catch (error) {
+    resultBox.textContent =
+      "❌ Erreur Magic Hour : " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = oldLabel;
+  }
 }
 
 /* =========================================================
