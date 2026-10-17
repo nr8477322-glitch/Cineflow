@@ -807,6 +807,86 @@ app.get("/api/magic-hour/preview/:id", (req, res) => {
   return res.sendFile(video.filePath);
 });
 
+app.post("/api/tts/test-scene", async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({
+        error: "La clé GEMINI_API_KEY est absente sur Render."
+      });
+    }
+
+    const language = req.body.language === "en" ? "en" : "fr";
+
+    const dialogues = Array.isArray(req.body.dialogues)
+      ? req.body.dialogues
+          .filter(d => d && typeof d.text === "string" && d.text.trim())
+          .slice(0, 12)
+      : [];
+
+    if (dialogues.length === 0) {
+      return res.status(400).json({
+        error: "Aucun dialogue disponible pour cette scène."
+      });
+    }
+
+    const speakers = [
+      ...new Set(
+        dialogues.map((d, i) => String(d.speaker || `Personnage ${i + 1}`))
+      )
+    ].slice(0, 2);
+
+    const content = dialogues.map((d, i) => ({
+      type: "text",
+      text: d.text.trim(),
+      annotations: [{
+        type: "speech_metadata",
+        speaker: speakers.includes(String(d.speaker || `Personnage ${i + 1}`))
+          ? String(d.speaker || `Personnage ${i + 1}`)
+          : speakers[0],
+        style: String(d.emotion || "natural, expressive cinematic dialogue")
+      }]
+    }));
+
+    const interaction = await ai.interactions.create({
+      model: "gemini-3.8-flash-tts",
+      input: [{
+        type: "user_input",
+        content
+      }],
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: {
+          mode: "conversational",
+          speakers: [
+            { speaker: speakers[0], voice: "Kore" },
+            ...(speakers[1]
+              ? [{ speaker: speakers[1], voice: "Puck" }]
+              : [])
+          ]
+        }
+      }
+    });
+
+    const audioBase64 = interaction.output_audio?.data;
+
+    if (!audioBase64) {
+      throw new Error("Aucun fichier audio reçu de Gemini.");
+    }
+
+    res.json({
+      success: true,
+      language,
+      mimeType: "audio/wav",
+      audioBase64
+    });
+  } catch (error) {
+    console.error("Erreur Gemini TTS :", error);
+    res.status(500).json({
+      error: error.message || "Échec de la génération vocale."
+    });
+  }
+});
+
 /* =========================================================
    CREATE PROJECT
 ========================================================= */
