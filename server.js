@@ -1441,186 +1441,301 @@ app.post(
   }
 );
 
+
 /* =========================================================
-   ANIMATION
+   ANIMATION : MAGIC HOUR EN PREMIER, VEO EN SECOURS
 ========================================================= */
 
-app.post(
-  "/api/animate",
-  async (req, res) => {
+async function animateVideoWithFallback(videoId, project, scene, imageData) {
+  const video = generatedVideos.get(videoId);
+  const projectVideo = (project.videos || []).find(
+    (item) => item.id === videoId
+  );
+
+  if (!video || !projectVideo) return;
+
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+  let magicHourError = "Clé Magic Hour absente.";
+
+  // 1. PRIORITÉ : MAGIC HOUR
+  if (apiKey) {
     try {
-      const project = projects.find(
-        (item) =>
-          item.id === req.body.projectId
+      const outputDir = path.join(
+        os.tmpdir(),
+        "cineflow-magic-hour",
+        videoId
       );
 
-      if (!project) {
-        return res.status(404).json({
-          success: false,
-          error: "Projet introuvable."
-        });
-      }
+      fs.mkdirSync(outputDir, { recursive: true });
 
-      if (!ai) {
-        throw new Error(
-          "GEMINI_API_KEY manquante."
-        );
-      }
+      const inputPath = path.join(outputDir, "source.png");
 
-      if (
-        !project.scenes ||
-        project.scenes.length !== 5
-      ) {
-        throw new Error(
-          "Le projet doit contenir 5 scènes."
-        );
-      }
+      fs.writeFileSync(
+        inputPath,
+        Buffer.from(imageData.data, "base64")
+      );
 
-      // Vérifier les 5 images AVANT
-      // de lancer la génération vidéo.
-      const imageErrors = [];
+      console.log(
+        `🎬 Scène ${scene.number} : tentative Magic Hour.`
+      );
 
-      const sceneImages =
-        project.scenes.map((scene) => {
-          const imageRecord =
-            project.images?.find(
-              (img) =>
-                Number(img.scene) ===
-                Number(scene.number)
-            );
+      const client = new Client({ token: apiKey });
 
-          if (
-            !imageRecord ||
-            imageRecord.status !== "generated" ||
-            !imageRecord.id
-          ) {
-            imageErrors.push(
-              Number(scene.number)
-            );
-
-            return null;
+      const result = await client.v1.imageToVideo.generate(
+        {
+          name: `Cineflow scène ${scene.number}`,
+          endSeconds: 5,
+          resolution: "480p",
+          assets: {
+            imageFilePath: inputPath
+          },
+          style: {
+            prompt:
+              scene.videoPrompt ||
+              scene.description ||
+              "Mouvement cinématographique naturel, caméra fluide."
           }
-
-          const imageData =
-            generatedImages.get(
-              imageRecord.id
-            );
-
-          if (
-            !imageData ||
-            !imageData.data
-          ) {
-            imageErrors.push(
-              Number(scene.number)
-            );
-
-            return null;
-          }
-
-          return {
-            scene,
-            imageData
-          };
-        });
-
-      if (imageErrors.length > 0) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Images indisponibles pour les scènes : " +
-            imageErrors.join(", ") +
-            ". Regénère ces images avant de lancer l'animation."
-        });
-      }
-
-      const videos = [];
-
-      for (const item of sceneImages) {
-        const scene = item.scene;
-        const imageData = item.imageData;
-
-        try {
-          const operation =
-            await ai.models.generateVideos({
-              model: VIDEO_MODEL,
-
-              prompt:
-                scene.videoPrompt ||
-                scene.description ||
-                "Cinematic scene.",
-
-              image: {
-                imageBytes: imageData.data,
-                mimeType:
-                  imageData.mimeType ||
-                  "image/png"
-              },
-
-              config: {
-                aspectRatio: "16:9"
-              }
-            });
-
-          const videoId = makeId("video");
-
-          generatedVideos.set(videoId, {
-            id: videoId,
-            projectId: project.id,
-            scene: scene.number,
-            operation,
-            status: "processing"
-          });
-
-          followVideoOperation(videoId);
-
-          videos.push({
-            id: videoId,
-            scene: scene.number,
-            status: "processing"
-          });
-
-          console.log(
-            `🎬 Scène ${scene.number}: génération Veo lancée.`
-          );
-        } catch (error) {
-          console.error(
-            `Erreur scène ${scene.number}:`,
-            error
-          );
-
-          videos.push({
-            scene: scene.number,
-            status: "error",
-            error: error.message
-          });
+        },
+        {
+          waitForCompletion: true,
+          downloadOutputs: true,
+          downloadDirectory: outputDir
         }
-      }
-
-      project.videos = videos;
-      project.status = "animation_processing";
-      project.progress = 75;
-      
-     await 
-  saveProjectToDatabase(project);
-      return res.json({
-        success: true,
-        videos
-      });
-    } catch (error) {
-      console.error(
-        "Erreur /api/animate :",
-        error
       );
 
-      return res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      const downloadedPaths =
+        result.downloadedPaths ||
+        result.downloaded_paths ||
+        [];
+
+      const videoPath = downloadedPaths.find(
+        (file) =>
+          typeof file === "string" &&
+          /\.(mp4|webm|mov)$/i.test(file)
+      );
+
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        throw new Error(
+          "Magic Hour n'a pas fourni de fichier vidéo local."
+        );
+      }
+
+      video.status = "ready";
+      video.provider = "magic-hour";
+      video.filePath = videoPath;
+
+      projectVideo.status = "ready";
+      projectVideo.provider = "magic-hour";
+      projectVideo.filePath = videoPath;
+
+      generatedVideos.set(videoId, video);
+
+      await saveProjectToDatabase(project);
+
+      console.log(
+        `✅ Scène ${scene.number} terminée avec Magic Hour.`
+      );
+
+      return;
+
+    } catch (error) {
+      magicHourError =
+        error.message || "Erreur Magic Hour inconnue.";
+
+      console.error(
+        `⚠️ Magic Hour a échoué pour la scène ${scene.number} :`,
+        magicHourError
+      );
     }
   }
-);
 
-/*==========================================================
+  // 2. SECOURS : VEO
+  try {
+    if (!ai) {
+      throw new Error(
+        "GEMINI_API_KEY manquante : Veo ne peut pas démarrer."
+      );
+    }
+
+    console.log(
+      `🎬 Scène ${scene.number} : tentative Veo.`
+    );
+
+    const operation = await ai.models.generateVideos({
+      model: VIDEO_MODEL,
+      prompt:
+        scene.videoPrompt ||
+        scene.description ||
+        "Cinematic scene.",
+      image: {
+        imageBytes: imageData.data,
+        mimeType: imageData.mimeType || "image/png"
+      },
+      config: {
+        aspectRatio: "16:9"
+      }
+    });
+
+    video.operation = operation;
+    video.provider = "veo";
+    video.status = "processing";
+
+    projectVideo.provider = "veo";
+    projectVideo.status = "processing";
+
+    generatedVideos.set(videoId, video);
+
+    await saveProjectToDatabase(project);
+
+    followVideoOperation(videoId);
+
+    console.log(
+      `⏳ Scène ${scene.number} envoyée à Veo.`
+    );
+
+  } catch (error) {
+    video.status = "error";
+    video.error =
+      "Magic Hour : " + magicHourError +
+      " | Veo : " + (error.message || "échec inconnu");
+
+    projectVideo.status = "error";
+    projectVideo.error = video.error;
+
+    generatedVideos.set(videoId, video);
+
+    await saveProjectToDatabase(project);
+
+    console.error(
+      `❌ Échec des deux moteurs pour la scène ${scene.number} :`,
+      video.error
+    );
+  }
+}
+
+app.post("/api/animate", async (req, res) => {
+  try {
+    const project = projects.find(
+      (item) => item.id === req.body.projectId
+    );
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: "Projet introuvable."
+      });
+    }
+
+    if (!project.scenes || project.scenes.length !== 5) {
+      return res.status(400).json({
+        success: false,
+        error: "Le projet doit contenir 5 scènes."
+      });
+    }
+
+    // Vérifier que les cinq images sont disponibles.
+    const imageErrors = [];
+
+    const sceneImages = project.scenes.map((scene) => {
+      const imageRecord = (project.images || []).find(
+        (img) =>
+          Number(img.scene) === Number(scene.number)
+      );
+
+      const imageData = imageRecord && imageRecord.id
+        ? generatedImages.get(imageRecord.id)
+        : null;
+
+      if (
+        !imageRecord ||
+        imageRecord.status !== "generated" ||
+        !imageData ||
+        !imageData.data
+      ) {
+        imageErrors.push(Number(scene.number));
+        return null;
+      }
+
+      return { scene, imageData };
+    });
+
+    if (imageErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Images indisponibles pour les scènes : " +
+          imageErrors.join(", ") +
+          ". Regénère ces images avant de lancer l'animation."
+      });
+    }
+
+    // Préparer les cinq vidéos avant de lancer les tâches.
+    const videos = sceneImages.map(({ scene }) => ({
+      id: makeId("video"),
+      scene: scene.number,
+      status: "processing",
+      provider: "magic-hour"
+    }));
+
+    project.videos = videos;
+    project.status = "animation_processing";
+    project.progress = 75;
+
+    await saveProjectToDatabase(project);
+
+    // Chaque scène essaie Magic Hour, puis Veo si nécessaire.
+    sceneImages.forEach(({ scene, imageData }, index) => {
+      const video = videos[index];
+
+      generatedVideos.set(video.id, {
+        id: video.id,
+        projectId: project.id,
+        scene: scene.number,
+        provider: "magic-hour",
+        status: "processing"
+      });
+
+      animateVideoWithFallback(
+        video.id,
+        project,
+        scene,
+        imageData
+      ).catch(async (error) => {
+        const stored = generatedVideos.get(video.id);
+
+        if (stored) {
+          stored.status = "error";
+          stored.error =
+            error.message || "Erreur vidéo inconnue.";
+
+          generatedVideos.set(video.id, stored);
+        }
+
+        video.status = "error";
+        video.error =
+          error.message || "Erreur vidéo inconnue.";
+
+        await saveProjectToDatabase(project);
+      });
+    });
+
+    return res.json({
+      success: true,
+      videos,
+      priority: ["magic-hour", "veo"]
+    });
+
+  } catch (error) {
+    console.error("Erreur /api/animate :", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/*============================================================
    JOBS
 ========================================================= */
 
