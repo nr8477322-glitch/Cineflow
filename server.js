@@ -843,64 +843,77 @@ app.post(
 
       project.progress = 10;
 
-      const text =
-        await generateText(
-          [
-            "Tu es le scénariste principal de Cineflow.",
-            "",
-            "Crée un projet vidéo cinématographique à partir de cette idée :",
-            prompt,
-            "",
-            "Catégorie :",
-            category || "Film",
-            "",
-            "Retourne uniquement un JSON valide.",
-            "",
-            "{",
-            '  "title": "titre",',
-            '  "concept": "concept court",',
-            '  "style": "style visuel",',
-            '  "characters": ["personnage 1", "personnage 2"],',
-            '  "scenes": [',
-            "    {",
-            '      "number": 1,',
-            '      "title": "titre scène",',
-            '      "description": "description détaillée",',
-            '      "imagePrompt": "prompt visuel cinématographique",',
-            '      "videoPrompt": "prompt animation vidéo"',
-            "    },",
-            "    {",
-            '      "number": 2,',
-            '      "title": "titre scène",',
-            '      "description": "description détaillée",',
-            '      "imagePrompt": "prompt visuel cinématographique",',
-            '      "videoPrompt": "prompt animation vidéo"',
-            "    },",
-            "    {",
-            '      "number": 3,',
-            '      "title": "titre scène",',
-            '      "description": "description détaillée",',
-            '      "imagePrompt": "prompt visuel cinématographique",',
-            '      "videoPrompt": "prompt animation vidéo"',
-            "    },",
-            "    {",
-            '      "number": 4,',
-            '      "title": "titre scène",',
-            '      "description": "description détaillée",',
-            '      "imagePrompt": "prompt visuel cinématographique",',
-            '      "videoPrompt": "prompt animation vidéo"',
-            "    },",
-            "    {",
-            '      "number": 5,',
-            '      "title": "titre scène",',
-            '      "description": "description détaillée",',
-            '      "imagePrompt": "prompt visuel cinématographique",',
-            '      "videoPrompt": "prompt animation vidéo"',
-            "    }",
-            "  ]",
-            "}"
-          ].join("\n")
-        );
+    
+const text =
+  await generateText(
+    [
+      "Tu es le scénariste principal de Cineflow, spécialisé dans les films cinématographiques.",
+      "",
+      "Crée un scénario détaillé à partir de cette idée :",
+      prompt,
+      "",
+      "Catégorie :",
+      category || "Film",
+      "",
+      "LANGUE : tous les dialogues doivent être en français naturel.",
+      "",
+      "RÈGLES DU SCÉNARIO :",
+      "- Retourne exactement 5 scènes, numérotées de 1 à 5.",
+      "- Garde les mêmes personnages, noms et personnalités dans tout le film.",
+      "- Chaque scène doit faire avancer l'histoire.",
+      "- Ajoute entre 3 et 6 répliques naturelles par scène lorsque la situation le permet.",
+      "- Chaque réplique doit avoir un personnage qui parle, un texte et une émotion.",
+      "- Les dialogues doivent être adaptés au genre, à l'âge des personnages et à la situation.",
+      "- Évite les dialogues répétitifs et les phrases artificielles.",
+      "- Décris les mouvements, les expressions du visage et les actions des personnages.",
+      "- Les prompts vidéo doivent décrire des mouvements réalistes et cohérents.",
+      "- Prévois les bruitages adaptés à chaque scène.",
+      "- Indique l'ambiance musicale souhaitée, sans inclure de paroles de chansons existantes.",
+      "- Les dialogues seront utilisés ultérieurement pour générer les voix : ne les écris pas uniquement dans la description.",
+      "",
+      "Retourne uniquement un JSON valide, sans Markdown ni commentaire.",
+      "Structure obligatoire :",
+      JSON.stringify({
+        title: "Titre du film",
+        concept: "Résumé de l'histoire",
+        style: "Style visuel et ambiance",
+        characters: [
+          {
+            name: "Nom du personnage",
+            description: "Apparence et rôle",
+            personality: "Personnalité",
+            voiceDescription: "Voix française, ton et manière de parler"
+          }
+        ],
+        scenes: [
+          {
+            number: 1,
+            title: "Titre de la scène",
+            description: "Description détaillée de l'action",
+            imagePrompt: "Prompt détaillé de l'image cinématographique",
+            videoPrompt: "Prompt détaillé des mouvements et actions",
+            dialogues: [
+              {
+                speaker: "Nom exact du personnage",
+                text: "Réplique en français",
+                emotion: "Émotion à exprimer"
+              }
+            ],
+            soundEffects: [
+              "Bruitages adaptés à la scène"
+            ],
+            musicMood: "Ambiance musicale souhaitée"
+          }
+        ]
+      }, null, 2),
+      "",
+      "Le tableau scenes doit contenir exactement 5 objets.",
+      "Chaque scène doit avoir ses propres dialogues, soundEffects et musicMood.",
+      "Chaque speaker doit correspondre à un personnage déclaré dans characters.",
+      "Pour dialogues, crée plusieurs répliques distinctes par scène, sans inventer de nouveaux personnages inutilement."
+    ].join("\n")
+  );
+
 
       const data =
         cleanJson(text);
