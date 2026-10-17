@@ -5290,6 +5290,50 @@ async function createProject(){
 
 }
 
+async function testDialogueVoice(language) {
+  if (
+    !currentProject ||
+    !Array.isArray(currentProject.scenes) ||
+    !currentProject.scenes.length
+  ) {
+    alert("Crée d'abord un projet avec ses scènes.");
+    return;
+  }
+
+  const scene = currentProject.scenes[0];
+
+  if (!Array.isArray(scene.dialogues) || !scene.dialogues.length) {
+    alert("La scène 1 ne contient aucun dialogue.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/tts/test-scene", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        language,
+        dialogues: scene.dialogues
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Erreur de génération audio.");
+    }
+
+    const audio = new Audio(
+      `data:${data.mimeType};base64,${data.audioBase64}`
+    );
+
+    await audio.play();
+  } catch (error) {
+    alert("Test vocal impossible : " + error.message);
+    console.error(error);
+  }
+}
+
 /* =========================================================
    AUTOPILOT
 ========================================================= */
