@@ -5333,9 +5333,9 @@ async function testDialogueVoice(language) {
       throw new Error(data.error || "Erreur de génération audio.");
     }
 
-    const audio = new Audio(
-      `data:${data.mimeType};base64,${data.audioBase64}`
-    );
+  const audio = new Audio(
+  "data:" + data.mimeType + ";base64," + data.audioBase64
+);
 
     await audio.play();
   } catch (error) {
