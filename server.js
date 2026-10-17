@@ -4423,6 +4423,16 @@ textarea{
           placeholder="Exemple : un jeune footballeur africain rêve de devenir professionnel malgré les difficultés..."
         ></textarea>
 
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;">
+  <button type="button" onclick="testDialogueVoice('fr')">
+    🎙️ Tester les voix françaises
+  </button>
+
+  <button type="button" onclick="testDialogueVoice('en')">
+    🎙️ Test English voices
+  </button>
+</div>
+
         <div class="chips">
 
           <button
