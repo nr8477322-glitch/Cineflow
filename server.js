@@ -2831,8 +2831,10 @@ app.post(
               "number, title, description, imagePrompt, videoPrompt, dialogues, soundEffects, musicMood.",
               "dialogues doit contenir 3 à 6 objets avec speaker, text et emotion.",
               "Chaque dialogue doit être en français naturel et adapté au personnage.",
-              "soundEffects doit décrire les bruitages de la scène.",
+                            "soundEffects doit décrire les bruitages de la scène.",
               "musicMood doit décrire l'ambiance musicale souhaitée."
+            ]
+          );
 
         const data =
           cleanJson(text);
