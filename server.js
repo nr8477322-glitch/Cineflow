@@ -1193,6 +1193,77 @@ if (pool) {
    PROJECTS
 ========================================================= */
 
+app.delete("/api/project/:id", async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    if (pool) {
+      await databaseReady;
+
+      const result = await pool.query(
+        "DELETE FROM cineflow_projects WHERE id = $1",
+        [id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Projet introuvable."
+        });
+      }
+    } else {
+      const index = projects.findIndex(
+        project => project.id === id
+      );
+
+      if (index === -1) {
+        return res.status(404).json({
+          success: false,
+          error: "Projet introuvable."
+        });
+      }
+    }
+
+    const index = projects.findIndex(
+      project => project.id === id
+    );
+
+    if (index !== -1) {
+      projects.splice(index, 1);
+    }
+
+    for (const [key, job] of jobs) {
+      if (job.projectId === id) {
+        jobs.delete(key);
+      }
+    }
+
+    for (const [key, image] of generatedImages) {
+      if (image.projectId === id) {
+        generatedImages.delete(key);
+      }
+    }
+
+    for (const [key, video] of generatedVideos) {
+      if (video.projectId === id) {
+        generatedVideos.delete(key);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Projet supprimé."
+    });
+  } catch (error) {
+    console.error("Suppression projet :", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de supprimer le projet."
+    });
+  }
+});
+
 app.get("/api/projects", async (req, res) => {
   try {
     if (pool) {
@@ -6644,18 +6715,16 @@ async function selectProject(projectId) {
 
 async function loadProjects() {
   try {
-    var response = await fetch("/api/projects");
-    var data = await response.json();
+    const response = await fetch("/api/projects");
+    const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(
-        data.error || "Erreur de chargement des projets."
-      );
+      throw new Error(data.error || "Erreur de chargement.");
     }
 
-    var list = data.projects || [];
-    var container = document.getElementById("projectsList");
-    var count = document.getElementById("projectCount");
+    const list = data.projects || [];
+    const container = document.getElementById("projectsList");
+    const count = document.getElementById("projectCount");
 
     if (!container || !count) return;
 
@@ -6667,50 +6736,83 @@ async function loadProjects() {
       return;
     }
 
-    var html = "";
-
-    list.slice(0, 6).forEach(function(project) {
-      var id = escapeHtml(String(project.id || ""));
-      var title = escapeHtml(
-        project.title || "Projet Cineflow"
-      );
-      var category = escapeHtml(
+    container.innerHTML = list.slice(0, 6).map(project => {
+      const id = escapeHtml(String(project.id || ""));
+      const title = escapeHtml(project.title || "Projet Cineflow");
+      const category = escapeHtml(
         (project.category || "FILM").toUpperCase()
       );
-      var status = escapeHtml(project.status || "Projet");
-      var progress = Math.max(
+      const status = escapeHtml(project.status || "Projet");
+      const progress = Math.max(
         0,
         Math.min(100, Number(project.progress || 0))
       );
 
-      html +=
-        '<div class="project" role="button" tabindex="0" ' +
-        'style="cursor:pointer" data-project-id="' + id + '" ' +
-        'onclick="selectProject(this.dataset.projectId)" ' +
-        'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){' +
-        'event.preventDefault();selectProject(this.dataset.projectId)}">' +
-
-          '<div class="cover">' +
-            '<span>' + category + '</span>' +
-          '</div>' +
-
-          '<div class="project-body">' +
-            '<h3>' + title + '</h3>' +
-            '<p>' + status + ' · Appuyer pour ouvrir</p>' +
-            '<div class="progress">' +
-              '<i style="width:' + progress + '%"></i>' +
-            '</div>' +
-          '</div>' +
-
-        '</div>';
-    });
-
-    container.innerHTML = html;
-
+      return `
+        <div class="project" style="cursor:pointer">
+          <div class="cover">
+            <span>${category}</span>
+          </div>
+          <div class="project-body">
+            <h3>${title}</h3>
+            <p>${status}</p>
+            <div class="progress">
+              <i style="width:${progress}%"></i>
+            </div>
+            <button
+              type="button"
+              class="small-btn"
+              data-project-id="${id}"
+              onclick="event.stopPropagation(); deleteProject(this.dataset.projectId)"
+            >🗑️ Supprimer</button>
+            <button
+              type="button"
+              class="small-btn"
+              data-project-id="${id}"
+              onclick="event.stopPropagation(); selectProject(this.dataset.projectId)"
+            >📂 Ouvrir</button>
+          </div>
+        </div>
+      `;
+    }).join("");
   } catch (error) {
     console.error("Erreur chargement projets :", error);
   }
 }
+
+async function deleteProject(projectId) {
+  if (!projectId) return;
+
+  if (!confirm(
+    "Veux-tu vraiment supprimer ce projet ? Cette action est définitive."
+  )) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "/api/project/" + encodeURIComponent(projectId),
+      { method: "DELETE" }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Suppression impossible.");
+    }
+
+    if (currentProject && currentProject.id === projectId) {
+      currentProject = null;
+    }
+
+    await loadProjects();
+
+    alert("✅ Projet supprimé.");
+  } catch (error) {
+    alert("❌ Erreur : " + error.message);
+  }
+}
+
 /* =========================================================
    DASHBOARD
 ========================================================= */
