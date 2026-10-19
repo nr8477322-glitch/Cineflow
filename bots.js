@@ -132,6 +132,85 @@ router.post("/quota/estimate", (req, res) => {
   });
 });
 
+const recoveryQueue = new Map();
+
+router.get("/queue", (req, res) => {
+  return res.json({
+    success: true,
+    bot: "File d'attente et de reprise",
+    status: "ready",
+    storage: "memory",
+    persistent: false,
+    tasks: Array.from(recoveryQueue.values()),
+    total: recoveryQueue.size,
+    message:
+      "Les tâches sont conservées en mémoire du serveur. La reprise automatique et la sauvegarde durable restent à connecter."
+  });
+});
+
+router.post("/queue", (req, res) => {
+  const { projectId, sceneNumber } = req.body || {};
+
+  if (!projectId || !Number.isInteger(sceneNumber) || sceneNumber < 1) {
+    return res.status(400).json({
+      success: false,
+      error:
+        "Fournis projectId et un sceneNumber entier supérieur à zéro."
+    });
+  }
+
+  const taskId = `${projectId}:scene:${sceneNumber}`;
+
+  if (recoveryQueue.has(taskId)) {
+    return res.json({
+      success: true,
+      duplicate: true,
+      task: recoveryQueue.get(taskId),
+      message: "Cette scène est déjà dans la file."
+    });
+  }
+
+  const task = {
+    id: taskId,
+    projectId,
+    sceneNumber,
+    status: "queued",
+    attempts: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  recoveryQueue.set(taskId, task);
+
+  return res.status(201).json({
+    success: true,
+    task,
+    message:
+      "Scène ajoutée à la file. Aucune génération n'a été lancée."
+  });
+});
+
+router.post("/queue/:taskId/retry", (req, res) => {
+  const task = recoveryQueue.get(req.params.taskId);
+
+  if (!task) {
+    return res.status(404).json({
+      success: false,
+      error: "Tâche introuvable dans la file."
+    });
+  }
+
+  task.status = "queued";
+  task.attempts += 1;
+  task.lastRetryRequestedAt = new Date().toISOString();
+
+  return res.json({
+    success: true,
+    task,
+    message:
+      "Nouvelle tentative planifiée. Le moteur de génération n'est pas encore connecté à cette file."
+  });
+});
+
   router.post("/orchestrate", async (req, res) => {
     try {
       const projectId = req.body.projectId;
