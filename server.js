@@ -4855,6 +4855,13 @@ textarea{
       >
         🎬 Tester Magic Hour — scène 1
       </button>
+            <button
+        class="secondary"
+        id="generateVoicesButton"
+        onclick="generateProjectVoices(this)"
+      >
+        🎙️ Générer les voix des 5 scènes
+      </button>
     </div>
     <div id="magicHourTestResult" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#20232b;color:white"></div>
   </section>
