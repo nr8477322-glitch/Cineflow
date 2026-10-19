@@ -5482,6 +5482,47 @@ async function testDialogueVoice(language) {
   }
 }
 
+async function generateProjectVoices(button) {
+  if (!currentProject || !currentProject.id) {
+    alert("Crée d'abord un nouveau projet Cineflow.");
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "⏳ Génération des voix...";
+  }
+
+  try {
+    const response = await fetch("/api/tts/generate-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: currentProject.id
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Échec de la génération des voix.");
+    }
+
+    alert(
+      "🎙️ " + data.message +
+      "\nPistes générées : " + data.tracks.length + "/5."
+    );
+  } catch (error) {
+    alert("Génération audio impossible : " + error.message);
+    console.error("Cineflow audio :", error);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "🎙️ Générer les voix des 5 scènes";
+    }
+  }
+}
+
 /* =========================================================
    AUTOPILOT
 ========================================================= */
