@@ -132,21 +132,265 @@ router.post("/quota/estimate", (req, res) => {
   });
 });
 
+
 const recoveryQueue = new Map();
 
-router.get("/queue", (req, res) => {
-  return res.json({
-    success: true,
-    bot: "File d'attente et de reprise",
-    status: "ready",
-    storage: "memory",
-    persistent: false,
-    tasks: Array.from(recoveryQueue.values()),
-    total: recoveryQueue.size,
-    message:
-      "Les tâches sont conservées en mémoire du serveur. La reprise automatique et la sauvegarde durable restent à connecter."
+  const queueTableReady = (async () => {
+    if (!pool) return false;
+
+    try {
+      const ready = await databaseReady;
+      if (!ready) return false;
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS cineflow_recovery_queue (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          scene_number INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      const result = await pool.query(
+        "SELECT data FROM cineflow_recovery_queue ORDER BY updated_at ASC"
+      );
+
+      for (const row of result.rows) {
+        if (row.data && row.data.id) {
+          recoveryQueue.set(row.data.id, row.data);
+        }
+      }
+
+      console.log("File de reprise : sauvegarde Neon prête.");
+      return true;
+    } catch (error) {
+      console.error("File de reprise Neon :", error.message);
+      return false;
+    }
+  })();
+
+  router.get("/queue", async (req, res) => {
+    const persistent = await queueTableReady;
+
+    try {
+      let tasks = Array.from(recoveryQueue.values());
+
+      if (persistent) {
+        const result = await pool.query(
+          "SELECT data FROM cineflow_recovery_queue ORDER BY updated_at ASC"
+        );
+
+        tasks = result.rows.map(row => row.data);
+
+        for (const task of tasks) {
+          if (task && task.id) {
+            recoveryQueue.set(task.id, task);
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        bot: "File d'attente et de reprise",
+        status: "ready",
+        storage: persistent ? "neon" : "memory",
+        persistent,
+        tasks,
+        total: tasks.length,
+        message: persistent
+          ? "Les tâches sont sauvegardées dans Neon. La reprise automatique du moteur reste à connecter."
+          : "Neon n'est pas disponible pour la file. Les tâches en mémoire peuvent disparaître au redémarrage."
+      });
+    } catch (error) {
+      console.error("Lecture de la file :", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de lire la file d'attente."
+      });
+    }
   });
-});
+
+  router.post("/queue", async (req, res) => {
+    const { projectId, sceneNumber } = req.body || {};
+
+    if (
+      typeof projectId !== "string" ||
+      !projectId.trim() ||
+      !Number.isInteger(sceneNumber) ||
+      sceneNumber < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Fournis projectId et un sceneNumber entier supérieur à zéro."
+      });
+    }
+
+    const persistent = await queueTableReady;
+    const taskId = `${projectId.trim()}:scene:${sceneNumber}`;
+
+    try {
+      if (persistent) {
+        const existing = await pool.query(
+          "SELECT data FROM cineflow_recovery_queue WHERE id = $1",
+          [taskId]
+        );
+
+        if (existing.rows.length > 0) {
+          recoveryQueue.set(taskId, existing.rows[0].data);
+
+          return res.json({
+            success: true,
+            duplicate: true,
+            task: existing.rows[0].data,
+            message: "Cette scène est déjà dans la file."
+          });
+        }
+      } else if (recoveryQueue.has(taskId)) {
+        return res.json({
+          success: true,
+          duplicate: true,
+          task: recoveryQueue.get(taskId),
+          message: "Cette scène est déjà dans la file."
+        });
+      }
+
+      const task = {
+        id: taskId,
+        projectId: projectId.trim(),
+        sceneNumber,
+        status: "queued",
+        attempts: 0,
+        createdAt: new Date().toISOString()
+      };
+
+      if (persistent) {
+        const inserted = await pool.query(
+          `INSERT INTO cineflow_recovery_queue
+            (id, project_id, scene_number, status, attempts, data, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW())
+           ON CONFLICT (id) DO NOTHING
+           RETURNING data`,
+          [
+            task.id,
+            task.projectId,
+            task.sceneNumber,
+            task.status,
+            task.attempts,
+            JSON.stringify(task)
+          ]
+        );
+
+        if (inserted.rows.length === 0) {
+          const existing = await pool.query(
+            "SELECT data FROM cineflow_recovery_queue WHERE id = $1",
+            [taskId]
+          );
+
+          if (existing.rows.length > 0) {
+            const existingTask = existing.rows[0].data;
+            recoveryQueue.set(taskId, existingTask);
+
+            return res.json({
+              success: true,
+              duplicate: true,
+              task: existingTask,
+              message: "Cette scène est déjà dans la file."
+            });
+          }
+        }
+      }
+
+      recoveryQueue.set(taskId, task);
+
+      return res.status(201).json({
+        success: true,
+        task,
+        storage: persistent ? "neon" : "memory",
+        persistent,
+        message: persistent
+          ? "Scène ajoutée et sauvegardée dans Neon. Aucune génération lancée."
+          : "Scène ajoutée en mémoire. Aucune génération lancée."
+      });
+    } catch (error) {
+      console.error("Ajout à la file :", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible d'ajouter la scène à la file."
+      });
+    }
+  });
+
+  router.post("/queue/:taskId/retry", async (req, res) => {
+    const persistent = await queueTableReady;
+
+    try {
+      let task = recoveryQueue.get(req.params.taskId);
+
+      if (persistent) {
+        const result = await pool.query(
+          "SELECT data FROM cineflow_recovery_queue WHERE id = $1",
+          [req.params.taskId]
+        );
+
+        task = result.rows[0]?.data;
+      }
+
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          error: "Tâche introuvable dans la file."
+        });
+      }
+
+      task = {
+        ...task,
+        status: "queued",
+        attempts:
+          (Number.isInteger(task.attempts) ? task.attempts : 0) + 1,
+        lastRetryRequestedAt: new Date().toISOString()
+      };
+
+      if (persistent) {
+        await pool.query(
+          `UPDATE cineflow_recovery_queue
+           SET status = $2,
+               attempts = $3,
+               data = $4::jsonb,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [
+            task.id,
+            task.status,
+            task.attempts,
+            JSON.stringify(task)
+          ]
+        );
+      }
+
+      recoveryQueue.set(task.id, task);
+
+      return res.json({
+        success: true,
+        task,
+        storage: persistent ? "neon" : "memory",
+        persistent,
+        message:
+          "Nouvelle tentative enregistrée. Le moteur de génération n'est pas encore connecté à cette file."
+      });
+    } catch (error) {
+      console.error("Nouvelle tentative de la file :", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de planifier une nouvelle tentative."
+      });
+    }
+  });
 
 router.post("/queue", (req, res) => {
   const { projectId, sceneNumber } = req.body || {};
