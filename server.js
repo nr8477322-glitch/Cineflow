@@ -6769,7 +6769,7 @@ async function loadProjects() {
           '</div>' +
         '</div>';
     });
-  } 
+    
       container.innerHTML = html;
   } catch (error) {
     console.error("Erreur chargement projets :", error);
