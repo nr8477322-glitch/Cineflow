@@ -1,4 +1,5 @@
 const express = require("express");
+const createBotsRouter = require("./bots");
 const { Client } = require("magic-hour");
 const { GoogleGenAI } = require("@google/genai");
 const ffmpegPath = require("ffmpeg-static");
@@ -62,11 +63,33 @@ const ai = API_KEY
    DATA
 ========================================================= */
 
+
 const projects = [];
 const jobs = new Map();
 const generatedImages = new Map();
 const generatedVideos = new Map();
 const series = [];
+
+app.use(
+  "/api/bots",
+  createBotsRouter({
+    projects,
+    jobs,
+    generatedImages,
+    generatedVideos,
+    pool,
+    databaseReady,
+    providers: {
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      magicHour: Boolean(process.env.MAGIC_HOUR_API_KEY),
+      cloudflare: Boolean(
+        process.env.CLOUDFLARE_API_TOKEN &&
+        process.env.CLOUDFLARE_ACCOUNT_ID
+      )
+    }
+  })
+);
+
 async function saveProjectToDatabase(project) {
   if (!pool || !project) {
     return false;
