@@ -887,6 +887,140 @@ app.post("/api/tts/test-scene", async (req, res) => {
   }
 });
 
+app.post("/api/tts/generate-project", async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "GEMINI_API_KEY absente sur Render."
+      });
+    }
+
+    const project = projects.find(
+      item => item.id === req.body.projectId
+    );
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: "Projet introuvable."
+      });
+    }
+
+    if (!Array.isArray(project.scenes) || project.scenes.length !== 5) {
+      return res.status(400).json({
+        success: false,
+        error: "Le projet doit contenir exactement 5 scènes."
+      });
+    }
+
+    const audioDir = path.join(
+      os.tmpdir(),
+      "cineflow-audio-" + String(project.id).replace(/[^a-zA-Z0-9_-]/g, "_")
+    );
+
+    fs.mkdirSync(audioDir, { recursive: true });
+
+    const tracks = [];
+
+    for (let i = 0; i < project.scenes.length; i++) {
+      const scene = project.scenes[i];
+
+      const dialogues = Array.isArray(scene.dialogues)
+        ? scene.dialogues
+            .filter(d => d && typeof d.text === "string" && d.text.trim())
+            .slice(0, 12)
+        : [];
+
+      if (dialogues.length === 0) {
+        throw new Error(
+          "Aucun dialogue dans la scène " + (i + 1) +
+          ". Regénère d'abord le scénario."
+        );
+      }
+
+      const speakers = [
+        ...new Set(
+          dialogues.map((d, j) =>
+            String(d.speaker || "Personnage " + (j + 1))
+          )
+        )
+      ].slice(0, 2);
+
+      const content = dialogues.map((d, j) => ({
+        type: "text",
+        text: d.text.trim(),
+        annotations: [{
+          type: "speech_metadata",
+          speaker: speakers.includes(
+            String(d.speaker || "Personnage " + (j + 1))
+          )
+            ? String(d.speaker || "Personnage " + (j + 1))
+            : speakers[0],
+          style: String(d.emotion || "natural, expressive cinematic dialogue")
+        }]
+      }));
+
+      const interaction = await ai.interactions.create({
+        model: "gemini-3.8-flash-tts",
+        input: [{ type: "user_input", content }],
+        response_format: { type: "audio" },
+        generation_config: {
+          speech_config: {
+            mode: "conversational",
+            speakers: [
+              { speaker: speakers[0], voice: "Kore" },
+              ...(speakers[1]
+                ? [{ speaker: speakers[1], voice: "Puck" }]
+                : [])
+            ]
+          }
+        }
+      });
+
+      const audioBase64 = interaction.output_audio?.data;
+
+      if (!audioBase64) {
+        throw new Error(
+          "Gemini n'a pas fourni l'audio de la scène " + (i + 1)
+        );
+      }
+
+      const filePath = path.join(audioDir, `scene-${i + 1}.wav`);
+
+      fs.writeFileSync(filePath, Buffer.from(audioBase64, "base64"));
+
+      tracks.push({
+        sceneNumber: i + 1,
+        filePath,
+        status: "ready"
+      });
+    }
+
+    project.audio = {
+      status: "ready",
+      type: "dialogue",
+      tracks
+    };
+
+    return res.json({
+      success: true,
+      message: "Voix générées pour les 5 scènes.",
+      tracks: tracks.map(track => ({
+        sceneNumber: track.sceneNumber,
+        status: track.status
+      }))
+    });
+  } catch (error) {
+    console.error("Erreur génération audio du projet :", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Échec de génération des voix."
+    });
+  }
+});
+
 /* =========================================================
    CREATE PROJECT
 ========================================================= */
