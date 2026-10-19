@@ -46,6 +46,92 @@ module.exports = function createBotsRouter(options) {
     });
   });
 
+router.get("/quota", (req, res) => {
+  const configuredProviders = {
+    gemini: Boolean(providers && providers.gemini),
+    magicHour: Boolean(providers && providers.magicHour),
+    cloudflare: Boolean(providers && providers.cloudflare)
+  };
+
+  return res.json({
+    success: true,
+    bot: "Gestionnaire de quotas et de budget",
+    status: "estimate_ready_tracking_not_connected",
+    providers: configuredProviders,
+    productionModel: {
+      scenesPerVideo: 5,
+      scriptCallsPerVideo: 1,
+      imageCallsPerVideo: 5,
+      animationCallsPerVideo: 5
+    },
+    currentActivity: {
+      projectsInMemory: projects.length,
+      jobsInMemory: jobs.size,
+      imagesInMemory: generatedImages.size,
+      videosInMemory: generatedVideos.size
+    },
+    quota: {
+      videosPossible: null,
+      verifiedRemainingQuota: false,
+      message:
+        "Les clés détectées ne révèlent pas les quotas restants. Les consommations réelles et les tarifs doivent être connectés avant d'annoncer un nombre fiable de vidéos."
+    },
+    nextStep:
+      "Utiliser POST /api/bots/quota/estimate avec les quotas restants connus pour calculer une estimation, sans lancer de génération."
+  });
+});
+
+router.post("/quota/estimate", (req, res) => {
+  const fields = [
+    "scriptCallsRemaining",
+    "imageCallsRemaining",
+    "animationCallsRemaining"
+  ];
+
+  for (const field of fields) {
+    const value = req.body && req.body[field];
+
+    if (!Number.isInteger(value) || value < 0) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Fournis des nombres entiers positifs ou nuls pour scriptCallsRemaining, imageCallsRemaining et animationCallsRemaining."
+      });
+    }
+  }
+
+  const scriptVideos = req.body.scriptCallsRemaining;
+  const imageVideos = Math.floor(
+    req.body.imageCallsRemaining / 5
+  );
+  const animationVideos = Math.floor(
+    req.body.animationCallsRemaining / 5
+  );
+
+  const videosPossible = Math.min(
+    scriptVideos,
+    imageVideos,
+    animationVideos
+  );
+
+  return res.json({
+    success: true,
+    bot: "Gestionnaire de quotas et de budget",
+    estimate: {
+      videosPossible,
+      basedOn: {
+        scriptCallsRemaining: req.body.scriptCallsRemaining,
+        imageCallsRemaining: req.body.imageCallsRemaining,
+        animationCallsRemaining: req.body.animationCallsRemaining,
+        scenesPerVideo: 5
+      },
+      verifiedByProvider: false
+    },
+    warning:
+      "Estimation basée uniquement sur les nombres fournis. Cineflow ne vérifie pas encore ces quotas auprès des fournisseurs et ne compte pas automatiquement les appels réels."
+  });
+});
+
   router.post("/orchestrate", async (req, res) => {
     try {
       const projectId = req.body.projectId;
