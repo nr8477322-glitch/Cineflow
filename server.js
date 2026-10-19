@@ -6736,49 +6736,41 @@ async function loadProjects() {
       return;
     }
 
-    container.innerHTML = list.slice(0, 6).map(project => {
-      const id = escapeHtml(String(project.id || ""));
-      const title = escapeHtml(project.title || "Projet Cineflow");
-      const category = escapeHtml(
+      var html = "";
+
+    list.slice(0, 6).forEach(function(project) {
+      var id = escapeHtml(String(project.id || ""));
+      var title = escapeHtml(project.title || "Projet Cineflow");
+      var category = escapeHtml(
         (project.category || "FILM").toUpperCase()
       );
-      const status = escapeHtml(project.status || "Projet");
-      const progress = Math.max(
+      var status = escapeHtml(project.status || "Projet");
+      var progress = Math.max(
         0,
         Math.min(100, Number(project.progress || 0))
       );
 
-      return `
-        <div class="project" style="cursor:pointer">
-          <div class="cover">
-            <span>${category}</span>
-          </div>
-          <div class="project-body">
-            <h3>${title}</h3>
-            <p>${status}</p>
-            <div class="progress">
-              <i style="width:${progress}%"></i>
-            </div>
-            <button
-              type="button"
-              class="small-btn"
-              data-project-id="${id}"
-              onclick="event.stopPropagation(); deleteProject(this.dataset.projectId)"
-            >🗑️ Supprimer</button>
-            <button
-              type="button"
-              class="small-btn"
-              data-project-id="${id}"
-              onclick="event.stopPropagation(); selectProject(this.dataset.projectId)"
-            >📂 Ouvrir</button>
-          </div>
-        </div>
-      `;
-    }).join("");
-  } catch (error) {
-    console.error("Erreur chargement projets :", error);
-  }
-}
+      html +=
+        '<div class="project">' +
+          '<div class="cover"><span>' + category + '</span></div>' +
+          '<div class="project-body">' +
+            '<h3>' + title + '</h3>' +
+            '<p>' + status + '</p>' +
+            '<div class="progress"><i style="width:' +
+              progress + '%"></i></div>' +
+            '<button type="button" class="small-btn" ' +
+              'data-project-id="' + id + '" ' +
+              'onclick="event.stopPropagation();deleteProject(this.dataset.projectId)">' +
+              '🗑️ Supprimer</button>' +
+            '<button type="button" class="small-btn" ' +
+              'data-project-id="' + id + '" ' +
+              'onclick="event.stopPropagation();selectProject(this.dataset.projectId)">' +
+              '📂 Ouvrir</button>' +
+          '</div>' +
+        '</div>';
+    });
+
+    container.innerHTML = html;
 
 async function deleteProject(projectId) {
   if (!projectId) return;
