@@ -383,27 +383,58 @@ if (project && project.videos) {
       videoId,
       video
     );
+if (project) {
+  await saveProjectToDatabase(project);
 
+  if (botsRouter?.updateRecoveryTask) {
+    await botsRouter.updateRecoveryTask({
+      projectId: project.id,
+      sceneNumber: Number(video.scene),
+      status: "completed",
+      videoId
+    });
+  }
+}
     console.log(
       `✅ MP4 scène ${video.scene} sauvegardé : ${outputPath}`
     );
 
-  } catch (error) {
-    video.status =
-      "error";
+} catch (error) {
+  video.status = "error";
+  video.error = error.message || "Erreur Veo inconnue.";
 
-    video.error =
-      error.message;
+  generatedVideos.set(videoId, video);
 
-    generatedVideos.set(
+  const project = projects.find(
+    item => item.id === video.projectId
+  );
+
+  if (project) {
+    const projectVideo = project.videos?.find(
+      item => item.id === videoId
+    );
+
+    if (projectVideo) {
+      projectVideo.status = "error";
+      projectVideo.error = video.error;
+    }
+
+    await saveProjectToDatabase(project);
+  }
+
+  if (botsRouter?.enqueueRecoveryTask) {
+    await botsRouter.enqueueRecoveryTask({
+      projectId: video.projectId,
+      sceneNumber: Number(video.scene),
       videoId,
-      video
-    );
+      error: video.error
+    });
+  }
 
-    console.error(
-      `❌ Erreur vidéo scène ${video.scene}:`,
-      error
-    );
+  console.error(
+    `❌ Erreur vidéo scène ${video.scene}:`,
+    video.error
+  );
   }
         }
 function cleanJson(text) {
@@ -2120,7 +2151,14 @@ app.post("/api/animate", async (req, res) => {
     project.progress = 75;
 
     await saveProjectToDatabase(project);
-
+if (botsRouter?.enqueueRecoveryTask) {
+  await botsRouter.enqueueRecoveryTask({
+    projectId: project.id,
+    sceneNumber: Number(video.scene),
+    videoId: video.id,
+    error: video.error
+  });
+}
     // Chaque scène essaie Magic Hour, puis Veo si nécessaire.
     sceneImages.forEach(({ scene, imageData }, index) => {
       const video = videos[index];
