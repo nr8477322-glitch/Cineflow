@@ -69,26 +69,27 @@ const jobs = new Map();
 const generatedImages = new Map();
 const generatedVideos = new Map();
 const series = [];
+let botsRouter;
 
-app.use(
-  "/api/bots",
-  createBotsRouter({
-    projects,
-    jobs,
-    generatedImages,
-    generatedVideos,
-    pool,
-    databaseReady,
-    providers: {
-      gemini: Boolean(process.env.GEMINI_API_KEY),
-      magicHour: Boolean(process.env.MAGIC_HOUR_API_KEY),
-      cloudflare: Boolean(
-        process.env.CLOUDFLARE_API_TOKEN &&
-        process.env.CLOUDFLARE_ACCOUNT_ID
-      )
-    }
-  })
-);
+botsRouter = createBotsRouter({
+  projects,
+  jobs,
+  generatedImages,
+  generatedVideos,
+  pool,
+  databaseReady,
+  retryScene: retryQueuedVideoScene,
+  providers: {
+    gemini: Boolean(process.env.GEMINI_API_KEY),
+    magicHour: Boolean(process.env.MAGIC_HOUR_API_KEY),
+    cloudflare: Boolean(
+      process.env.CLOUDFLARE_API_TOKEN &&
+      process.env.CLOUDFLARE_ACCOUNT_ID
+    )
+  }
+});
+
+app.use("/api/bots", botsRouter);
 
 async function saveProjectToDatabase(project) {
   if (!pool || !project) {
@@ -149,7 +150,109 @@ const platformStats = {
     revenue: 0
   }
 };
+async function retryQueuedVideoScene(projectId, sceneNumber) {
+  const project = projects.find(
+    (item) => item.id === projectId
+  );
 
+  if (!project) {
+    return {
+      success: false,
+      error: "Projet absent de la mémoire du serveur. Rouvre le projet et vérifie ses images."
+    };
+  }
+
+  const scene = (project.scenes || []).find(
+    (item) => Number(item.number) === Number(sceneNumber)
+  );
+
+  const imageRecord = (project.images || []).find(
+    (item) =>
+      Number(item.scene) === Number(sceneNumber) &&
+      item.status === "generated"
+  );
+
+  const imageData = imageRecord?.id
+    ? generatedImages.get(imageRecord.id)
+    : null;
+
+  if (!scene || !imageData?.data) {
+    return {
+      success: false,
+      error: "Image de cette scène indisponible en mémoire. Regénère l'image avant de relancer."
+    };
+  }
+
+  const videoId = makeId("video");
+
+  const projectVideo = {
+    id: videoId,
+    scene: Number(sceneNumber),
+    status: "processing",
+    provider: "magic-hour"
+  };
+
+  if (!Array.isArray(project.videos)) {
+    project.videos = [];
+  }
+
+  project.videos = project.videos.filter(
+    (item) => Number(item.scene) !== Number(sceneNumber)
+  );
+
+  project.videos.push(projectVideo);
+
+  project.videos.sort(
+    (a, b) => Number(a.scene) - Number(b.scene)
+  );
+
+  project.status = "animation_processing";
+
+  generatedVideos.set(videoId, {
+    id: videoId,
+    projectId: project.id,
+    scene: Number(sceneNumber),
+    provider: "magic-hour",
+    status: "processing"
+  });
+
+  await saveProjectToDatabase(project);
+
+  animateVideoWithFallback(
+    videoId,
+    project,
+    scene,
+    imageData
+  ).catch(async (error) => {
+    const message = error?.message || "Erreur vidéo inattendue.";
+    const video = generatedVideos.get(videoId);
+
+    if (video) {
+      video.status = "error";
+      video.error = message;
+      generatedVideos.set(videoId, video);
+    }
+
+    projectVideo.status = "error";
+    projectVideo.error = message;
+
+    await saveProjectToDatabase(project);
+
+    if (botsRouter?.enqueueRecoveryTask) {
+      await botsRouter.enqueueRecoveryTask({
+        projectId: project.id,
+        sceneNumber: Number(sceneNumber),
+        videoId,
+        error: message
+      });
+    }
+  });
+
+  return {
+    success: true,
+    videoId
+  };
+}
 /* =========================================================
    HELPERS
 ========================================================= */
