@@ -2151,14 +2151,7 @@ app.post("/api/animate", async (req, res) => {
     project.progress = 75;
 
     await saveProjectToDatabase(project);
-if (botsRouter?.enqueueRecoveryTask) {
-  await botsRouter.enqueueRecoveryTask({
-    projectId: project.id,
-    sceneNumber: Number(video.scene),
-    videoId: video.id,
-    error: video.error
-  });
-}
+    
     // Chaque scène essaie Magic Hour, puis Veo si nécessaire.
     sceneImages.forEach(({ scene, imageData }, index) => {
       const video = videos[index];
@@ -2192,6 +2185,14 @@ if (botsRouter?.enqueueRecoveryTask) {
           error.message || "Erreur vidéo inconnue.";
 
         await saveProjectToDatabase(project);
+        if (botsRouter?.enqueueRecoveryTask) {
+  await botsRouter.enqueueRecoveryTask({
+    projectId: project.id,
+    sceneNumber: Number(video.scene),
+    videoId: video.id,
+    error: video.error
+  });
+        }
       });
     });
 
