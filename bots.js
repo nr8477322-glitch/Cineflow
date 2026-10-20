@@ -8,13 +8,13 @@ module.exports = function createBotsRouter(options) {
     projects,
     jobs,
     generatedImages,
-    generatedVideos,
+        generatedVideos,
     pool,
     databaseReady,
-    providers
+    providers,
+    retryScene
   } = options;
-
-  router.get("/status", (req, res) => {
+    router.get("/status", (req, res) => {
     res.json({
       success: true,
       orchestrator: {
