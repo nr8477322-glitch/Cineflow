@@ -1955,7 +1955,14 @@ async function animateVideoWithFallback(videoId, project, scene, imageData) {
       generatedVideos.set(videoId, video);
 
       await saveProjectToDatabase(project);
-
+if (botsRouter?.updateRecoveryTask) {
+  await botsRouter.updateRecoveryTask({
+    projectId: project.id,
+    sceneNumber: Number(scene.number),
+    status: "completed",
+    videoId
+  });
+}
       console.log(
         `✅ Scène ${scene.number} terminée avec Magic Hour.`
       );
@@ -2029,7 +2036,14 @@ async function animateVideoWithFallback(videoId, project, scene, imageData) {
     generatedVideos.set(videoId, video);
 
     await saveProjectToDatabase(project);
-
+if (botsRouter?.enqueueRecoveryTask) {
+  await botsRouter.enqueueRecoveryTask({
+    projectId: project.id,
+    sceneNumber: Number(scene.number),
+    videoId,
+    error: video.error
+  });
+}
     console.error(
       `❌ Échec des deux moteurs pour la scène ${scene.number} :`,
       video.error
