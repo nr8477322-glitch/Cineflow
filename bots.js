@@ -390,71 +390,191 @@ const recoveryQueue = new Map();
         error: "Impossible de planifier une nouvelle tentative."
       });
     }
+  }) 
+  
+  router.post("/queue/:taskId/retry", async (req, res) => {
+    const persistent = await queueTableReady;
+
+    try {
+      let task = recoveryQueue.get(req.params.taskId);
+
+      if (persistent) {
+        const result = await pool.query(
+          "SELECT data FROM cineflow_recovery_queue WHERE id = $1",
+          [req.params.taskId]
+        );
+        task = result.rows[0]?.data;
+      }
+
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          error: "Tâche introuvable dans la file."
+        });
+      }
+
+      if (typeof retryScene !== "function") {
+        return res.status(503).json({
+          success: false,
+          error: "Le moteur de reprise n'est pas connecté."
+        });
+      }
+
+      const result = await retryScene(
+        task.projectId,
+        task.sceneNumber,
+        task
+      );
+
+      if (!result || result.success !== true) {
+        return res.status(409).json({
+          success: false,
+          error: result?.error || "La scène ne peut pas être relancée."
+        });
+      }
+
+      task = {
+        ...task,
+        status: "processing",
+        attempts: (Number.isInteger(task.attempts) ? task.attempts : 0) + 1,
+        videoId: result.videoId,
+        lastRetryRequestedAt: new Date().toISOString()
+      };
+
+      if (persistent) {
+        await pool.query(
+          `UPDATE cineflow_recovery_queue
+           SET status = $2,
+               attempts = $3,
+               data = $4::jsonb,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [
+            task.id,
+            task.status,
+            task.attempts,
+            JSON.stringify(task)
+          ]
+        );
+      }
+
+      recoveryQueue.set(task.id, task);
+
+      return res.json({
+        success: true,
+        task,
+        storage: persistent ? "neon" : "memory",
+        persistent,
+        message: "La relance de la scène a été démarrée."
+      });
+    } catch (error) {
+      console.error("Relance de scène :", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de relancer cette scène."
+      });
+    }
   });
-
-router.post("/queue", (req, res) => {
-  const { projectId, sceneNumber } = req.body || {};
-
-  if (!projectId || !Number.isInteger(sceneNumber) || sceneNumber < 1) {
-    return res.status(400).json({
-      success: false,
-      error:
-        "Fournis projectId et un sceneNumber entier supérieur à zéro."
-    });
-  }
-
-  const taskId = `${projectId}:scene:${sceneNumber}`;
-
-  if (recoveryQueue.has(taskId)) {
-    return res.json({
-      success: true,
-      duplicate: true,
-      task: recoveryQueue.get(taskId),
-      message: "Cette scène est déjà dans la file."
-    });
-  }
-
-  const task = {
-    id: taskId,
+    router.enqueueRecoveryTask = async ({
     projectId,
     sceneNumber,
-    status: "queued",
-    attempts: 0,
-    createdAt: new Date().toISOString()
+    videoId,
+    error
+  }) => {
+    if (!projectId || !Number.isInteger(Number(sceneNumber))) {
+      return false;
+    }
+
+    const persistent = await queueTableReady;
+    const taskId = `${projectId}:scene:${Number(sceneNumber)}`;
+    const previous = recoveryQueue.get(taskId);
+
+    const task = {
+      ...(previous || {}),
+      id: taskId,
+      projectId,
+      sceneNumber: Number(sceneNumber),
+      status: "queued",
+      attempts: Number.isInteger(previous?.attempts)
+        ? previous.attempts
+        : 0,
+      videoId: videoId || previous?.videoId || null,
+      lastError: error || previous?.lastError || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (persistent) {
+      await pool.query(
+        `INSERT INTO cineflow_recovery_queue
+          (id, project_id, scene_number, status, attempts, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           status = EXCLUDED.status,
+           attempts = EXCLUDED.attempts,
+           data = EXCLUDED.data,
+           updated_at = NOW()`,
+        [
+          task.id,
+          task.projectId,
+          task.sceneNumber,
+          task.status,
+          task.attempts,
+          JSON.stringify(task)
+        ]
+      );
+    }
+
+    recoveryQueue.set(taskId, task);
+    return true;
   };
 
-  recoveryQueue.set(taskId, task);
+  router.updateRecoveryTask = async ({
+    projectId,
+    sceneNumber,
+    status,
+    videoId,
+    error
+  }) => {
+    const taskId = `${projectId}:scene:${Number(sceneNumber)}`;
+    const persistent = await queueTableReady;
+    let task = recoveryQueue.get(taskId);
 
-  return res.status(201).json({
-    success: true,
-    task,
-    message:
-      "Scène ajoutée à la file. Aucune génération n'a été lancée."
-  });
-});
+    if (persistent) {
+      const result = await pool.query(
+        "SELECT data FROM cineflow_recovery_queue WHERE id = $1",
+        [taskId]
+      );
 
-router.post("/queue/:taskId/retry", (req, res) => {
-  const task = recoveryQueue.get(req.params.taskId);
+      if (result.rows[0]?.data) {
+        task = result.rows[0].data;
+      }
+    }
 
-  if (!task) {
-    return res.status(404).json({
-      success: false,
-      error: "Tâche introuvable dans la file."
-    });
-  }
+    if (!task) return false;
 
-  task.status = "queued";
-  task.attempts += 1;
-  task.lastRetryRequestedAt = new Date().toISOString();
+    task = {
+      ...task,
+      status,
+      videoId: videoId || task.videoId || null,
+      ...(error ? { lastError: error } : {}),
+      updatedAt: new Date().toISOString()
+    };
 
-  return res.json({
-    success: true,
-    task,
-    message:
-      "Nouvelle tentative planifiée. Le moteur de génération n'est pas encore connecté à cette file."
-  });
-});
+    if (persistent) {
+      await pool.query(
+        `UPDATE cineflow_recovery_queue
+         SET status = $2,
+             data = $3::jsonb,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [taskId, status, JSON.stringify(task)]
+      );
+    }
 
+    recoveryQueue.set(taskId, task);
+    return true;
+  };
   router.post("/orchestrate", async (req, res) => {
     try {
       const projectId = req.body.projectId;
