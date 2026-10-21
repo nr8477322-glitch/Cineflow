@@ -17,32 +17,38 @@ const pool = process.env.DATABASE_URL
     })
   : null;
 
-const databaseReady = pool
-  ? pool.query(`
-    
-    `)
-      .then(() => {
-        console.log("Neon : table des projets prête.");
-        return tr      CREATE TABLE IF NOT EXISTS cineflow_projects (
-        id TEXT PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
 
-      CREATE TABLE IF NOT EXISTS cineflow_images (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        scene_number INTEGER,
-        mime_type TEXT NOT NULL DEFAULT 'image/png',
-        data TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )ue;
-      })
-      .catch((error) => {
+const databaseReady = pool
+  ? (async () => {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cineflow_projects (
+            id TEXT PRIMARY KEY,
+            data JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cineflow_images (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            scene_number INTEGER,
+            mime_type TEXT NOT NULL DEFAULT 'image/png',
+            data TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        console.log("Neon : tables prêtes.");
+        return true;
+      } catch (error) {
         console.error("Erreur Neon :", error.message);
         return false;
-      })
+      }
+    })()
   : Promise.resolve(false);
+
 
 const app = express();
 
@@ -1744,12 +1750,10 @@ app.post(
   data: image.data
 };
 
+         
 generatedImages.set(imageId, imageRecord);
 await saveImageToDatabase(imageId, imageRecord);
-          await saveImageToDatabase(
-            imageId,
-            generatedImages.get(imageId)
-          );
+ 
           results.push({
             id: imageId,
             scene:
@@ -1998,7 +2002,7 @@ app.post(
           "/api/image/" +
           imageId
       });
-
+      await saveProjectToDatabase(project);
       res.json({
         success: true,
 
