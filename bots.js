@@ -201,7 +201,7 @@ const recoveryQueue = new Map();
         tasks,
         total: tasks.length,
         message: persistent
-          ? "Les tâches sont sauvegardées dans Neon. La reprise automatique du moteur reste à connecter."
+        ? "Les tâches sont sauvegardées dans Neon. La reprise automatique est activée."
           : "Neon n'est pas disponible pour la file. Les tâches en mémoire peuvent disparaître au redémarrage."
       });
     } catch (error) {
@@ -691,6 +691,7 @@ const recoveryQueue = new Map();
             task
           );
 
+
           if (!result || result.success !== true) {
             task.status =
               task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
@@ -700,23 +701,12 @@ const recoveryQueue = new Map();
             task.lastError =
               result?.error ||
               "La relance automatique a échoué.";
-          } else {
-            task.status = "processing";
-            task.videoId =
-              result.videoId || task.videoId || null;
+
+            await saveRecoveryTask(task, persistent);
           }
-        } catch (error) {
-          task.status =
-            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
-              ? "failed"
-              : "queued";
+          // Si la relance démarre, on laisse le moteur vidéo
+          // mettre à jour la file lors de la réussite ou de l'échec.
 
-          task.lastError =
-            error.message ||
-            "Erreur pendant la reprise automatique.";
-        }
-
-        await saveRecoveryTask(task, persistent);
       }
     } catch (error) {
       console.error(
