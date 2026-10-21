@@ -625,5 +625,112 @@ const recoveryQueue = new Map();
     }
   });
 
+  const MAX_AUTO_RECOVERY_ATTEMPTS = 3;
+  let recoveryWorkerRunning = false;
+
+  async function saveRecoveryTask(task, persistent) {
+    task.updatedAt = new Date().toISOString();
+    recoveryQueue.set(task.id, task);
+
+    if (persistent) {
+      await pool.query(
+        `UPDATE cineflow_recovery_queue
+         SET status = $2,
+             attempts = $3,
+             data = $4::jsonb,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+          task.id,
+          task.status,
+          task.attempts,
+          JSON.stringify(task)
+        ]
+      );
+    }
+  }
+
+  async function processRecoveryQueue() {
+    if (recoveryWorkerRunning) return;
+
+    recoveryWorkerRunning = true;
+
+    try {
+      const persistent = await queueTableReady;
+
+      const pendingTasks = Array.from(
+        recoveryQueue.values()
+      ).filter(
+        task => task && task.status === "queued"
+      );
+
+      for (const task of pendingTasks) {
+        if (
+          Number(task.attempts || 0) >=
+          MAX_AUTO_RECOVERY_ATTEMPTS
+        ) {
+          task.status = "failed";
+          task.lastError =
+            task.lastError ||
+            "Nombre maximal de tentatives atteint.";
+
+          await saveRecoveryTask(task, persistent);
+          continue;
+        }
+
+        task.status = "processing";
+        task.attempts =
+          Number(task.attempts || 0) + 1;
+
+        await saveRecoveryTask(task, persistent);
+
+        try {
+          const result = await retryScene(
+            task.projectId,
+            task.sceneNumber,
+            task
+          );
+
+          if (!result || result.success !== true) {
+            task.status =
+              task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
+                ? "failed"
+                : "queued";
+
+            task.lastError =
+              result?.error ||
+              "La relance automatique a échoué.";
+          } else {
+            task.status = "processing";
+            task.videoId =
+              result.videoId || task.videoId || null;
+          }
+        } catch (error) {
+          task.status =
+            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
+              ? "failed"
+              : "queued";
+
+          task.lastError =
+            error.message ||
+            "Erreur pendant la reprise automatique.";
+        }
+
+        await saveRecoveryTask(task, persistent);
+      }
+    } catch (error) {
+      console.error(
+        "Bot de reprise automatique :",
+        error.message
+      );
+    } finally {
+      recoveryWorkerRunning = false;
+    }
+  }
+
+  setInterval(() => {
+    processRecoveryQueue();
+  }, 60 * 1000);
+
   return router;
 };
