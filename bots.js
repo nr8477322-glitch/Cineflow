@@ -743,16 +743,34 @@ module.exports = function createBotsRouter(options) {
             task
           );
 
-          if (!result || result.success !== true) {
-            task.status =
-              task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
-                ? "failed"
-                : "queued";
+        
+if (!result || result.success !== true) {
+  const errorMessage =
+    result?.error || "La relance automatique a échoué.";
 
-            task.lastError =
-              result?.error || "La relance automatique a échoué.";
+  const permanentError =
+    result?.permanent === true ||
+    errorMessage.includes(
+      "Projet introuvable dans la mémoire et dans Neon"
+    ) ||
+    errorMessage.includes(
+      "Image de cette scène indisponible en mémoire"
+    );
 
-            await persistTask(task);
+  task.status =
+    permanentError ||
+    task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
+      ? "failed"
+      : "queued";
+
+  task.lastError = errorMessage;
+
+  await persistTask(task);
+} else {
+  task.videoId = result.videoId || task.videoId || null;
+  await persistTask(task);
+}
+
           } else {
             task.videoId = result.videoId || task.videoId || null;
             await persistTask(task);
