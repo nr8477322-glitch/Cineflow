@@ -19,15 +19,24 @@ const pool = process.env.DATABASE_URL
 
 const databaseReady = pool
   ? pool.query(`
-      CREATE TABLE IF NOT EXISTS cineflow_projects (
-        id TEXT PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
+    
     `)
       .then(() => {
         console.log("Neon : table des projets prête.");
-        return true;
+        return tr      CREATE TABLE IF NOT EXISTS cineflow_projects (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS cineflow_images (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        scene_number INTEGER,
+        mime_type TEXT NOT NULL DEFAULT 'image/png',
+        data TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )ue;
       })
       .catch((error) => {
         console.error("Erreur Neon :", error.message);
@@ -118,6 +127,81 @@ async function saveProjectToDatabase(project) {
 
     return false;
   }
+}
+async function saveImageToDatabase(imageId, image) {
+  if (!pool || !imageId || !image?.data) return false;
+
+  try {
+    const ready = await databaseReady;
+    if (!ready) return false;
+
+    await pool.query(
+      `INSERT INTO cineflow_images
+        (id, project_id, scene_number, mime_type, data, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         project_id = EXCLUDED.project_id,
+         scene_number = EXCLUDED.scene_number,
+         mime_type = EXCLUDED.mime_type,
+         data = EXCLUDED.data,
+         updated_at = NOW()`,
+      [
+        imageId,
+        image.projectId,
+        Number(image.scene) || null,
+        image.mimeType || "image/png",
+        image.data
+      ]
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Erreur de sauvegarde image Neon :", error.message);
+    return false;
+  }
+}
+
+async function loadImageFromDatabase(imageId) {
+  if (!pool || !imageId) return null;
+
+  try {
+    const ready = await databaseReady;
+    if (!ready) return null;
+
+    const result = await pool.query(
+      `SELECT id, project_id, scene_number, mime_type, data
+       FROM cineflow_images
+       WHERE id = $1
+       LIMIT 1`,
+      [imageId]
+    );
+
+    if (!result.rows.length) return null;
+
+    const row = result.rows[0];
+
+    const image = {
+      id: row.id,
+      projectId: row.project_id,
+      scene: row.scene_number,
+      mimeType: row.mime_type || "image/png",
+      data: row.data
+    };
+
+    generatedImages.set(imageId, image);
+    return image;
+  } catch (error) {
+    console.error("Erreur de récupération image Neon :", error.message);
+    return null;
+  }
+}
+
+async function getImageData(imageId) {
+  const image = generatedImages.get(imageId);
+
+  if (image?.data) return image;
+
+  return await loadImageFromDatabase(imageId);
 }
 const accounts = {
   youtube: false,
@@ -1651,21 +1735,21 @@ app.post(
           const imageId =
             makeId("image");
 
-          generatedImages.set(
-            imageId,
-            {
-              id: imageId,
-              projectId:
-                project.id,
-              scene:
-                scene.number,
-              mimeType:
-                image.mimeType,
-              data:
-                image.data
-            }
-          );
+          
+          const imageRecord = {
+  id: imageId,
+  projectId: project.id,
+  scene: scene.number,
+  mimeType: image.mimeType,
+  data: image.data
+};
 
+generatedImages.set(imageId, imageRecord);
+await saveImageToDatabase(imageId, imageRecord);
+          await saveImageToDatabase(
+            imageId,
+            generatedImages.get(imageId)
+          );
           results.push({
             id: imageId,
             scene:
@@ -1737,39 +1821,43 @@ app.post(
 /* =========================================================
    SERVE IMAGE
 ========================================================= */
-
 app.get(
   "/api/image/:id",
-  (req, res) => {
-    const image =
-      generatedImages.get(
+  async (req, res) => {
+    try {
+      const image = await getImageData(
         req.params.id
       );
 
-    if (!image) {
-      return res.status(404).json({
-        error:
-          "Image introuvable."
+      if (!image?.data) {
+        return res.status(404).json({
+          error: "Image introuvable dans la mémoire et dans Neon."
+        });
+      }
+
+      res.setHeader(
+        "Content-Type",
+        image.mimeType || "image/png"
+      );
+
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=3600"
+      );
+
+      res.send(
+        Buffer.from(image.data, "base64")
+      );
+    } catch (error) {
+      console.error(
+        "Erreur de récupération de l'image :",
+        error.message
+      );
+
+      res.status(500).json({
+        error: "Impossible de récupérer l'image."
       });
     }
-
-    res.setHeader(
-      "Content-Type",
-      image.mimeType ||
-        "image/png"
-    );
-
-    res.setHeader(
-      "Cache-Control",
-      "public, max-age=3600"
-    );
-
-    res.send(
-      Buffer.from(
-        image.data,
-        "base64"
-      )
-    );
   }
 );
 
@@ -1889,7 +1977,10 @@ app.post(
             image.data
         }
       );
-
+          await saveImageToDatabase(
+            imageId,
+            generatedImages.get(imageId)
+          );
       project.images =
         project.images.filter(
           (item) =>
