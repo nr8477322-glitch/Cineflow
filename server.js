@@ -150,10 +150,47 @@ const platformStats = {
     revenue: 0
   }
 };
+
 async function retryQueuedVideoScene(projectId, sceneNumber) {
-  const project = projects.find(
+  let project = projects.find(
     (item) => item.id === projectId
   );
+
+  // Si le projet n'est plus en mémoire,
+  // tenter de le restaurer depuis Neon.
+  if (!project && pool) {
+    const databaseAvailable = await databaseReady;
+
+    if (databaseAvailable) {
+      const result = await pool.query(
+        `SELECT data
+         FROM cineflow_projects
+         WHERE id = $1
+         LIMIT 1`,
+        [projectId]
+      );
+
+      if (result.rows.length > 0) {
+        project = result.rows[0].data;
+
+        if (project && project.id === projectId) {
+          projects.unshift(project);
+        } else {
+          project = null;
+        }
+      }
+    }
+  }
+
+  if (!project) {
+    return {
+      success: false,
+      permanent: true,
+      error:
+        "Projet introuvable dans la mémoire et dans Neon. Vérifie la sauvegarde du projet."
+    };
+  }
+
 
   if (!project) {
     return {
