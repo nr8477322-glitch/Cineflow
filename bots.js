@@ -185,12 +185,46 @@ const recoveryQueue = new Map();
 
         tasks = result.rows.map(row => row.data);
 
-        for (const task of tasks) {
-          if (task && task.id) {
-            recoveryQueue.set(task.id, task);
+      
+      for (const row of result.rows) {
+        if (row.data && row.data.id) {
+          const task = row.data;
+
+          // Une tâche restée en traitement peut avoir été
+          // interrompue par le redémarrage du serveur.
+          if (task.status === "processing") {
+            const updatedAt = Date.parse(
+              task.updatedAt || ""
+            );
+
+            const stale =
+              !Number.isFinite(updatedAt) ||
+              Date.now() - updatedAt > 15 * 60 * 1000;
+
+            if (stale) {
+              task.status = "queued";
+              task.lastError =
+                "Reprise après interruption du serveur.";
+
+              await pool.query(
+                `UPDATE cineflow_recovery_queue
+                 SET status = $2,
+                     data = $3::jsonb,
+                     updated_at = NOW()
+                 WHERE id = $1`,
+                [
+                  task.id,
+                  task.status,
+                  JSON.stringify(task)
+                ]
+              );
+            }
           }
+
+          recoveryQueue.set(task.id, task);
         }
       }
+
 
       return res.json({
         success: true,
