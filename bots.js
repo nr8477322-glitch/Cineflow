@@ -771,10 +771,6 @@ if (!result || result.success !== true) {
   await persistTask(task);
 }
 
-          } else {
-            task.videoId = result.videoId || task.videoId || null;
-            await persistTask(task);
-          }
         } catch (error) {
           task.status =
             task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
