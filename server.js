@@ -280,14 +280,7 @@ async function retryQueuedVideoScene(projectId, sceneNumber) {
         "Projet introuvable dans la mémoire et dans Neon. Vérifie la sauvegarde du projet."
     };
   }
-
-
-  if (!project) {
-    return {
-      success: false,
-      error: "Projet absent de la mémoire du serveur. Rouvre le projet et vérifie ses images."
-    };
-  }
+  
 
   const scene = (project.scenes || []).find(
     (item) => Number(item.number) === Number(sceneNumber)
@@ -300,8 +293,8 @@ async function retryQueuedVideoScene(projectId, sceneNumber) {
   );
 
   const imageData = imageRecord?.id
-    ? generatedImages.get(imageRecord.id)
-    : null;
+  ? await getImageData(imageRecord.id)
+  : null;
 
   if (!scene || !imageData?.data) {
     return {
