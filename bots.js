@@ -625,6 +625,7 @@ const recoveryQueue = new Map();
     }
   });
 
+
   const MAX_AUTO_RECOVERY_ATTEMPTS = 3;
   let recoveryWorkerRunning = false;
 
@@ -658,6 +659,13 @@ const recoveryQueue = new Map();
     try {
       const persistent = await queueTableReady;
 
+      if (typeof retryScene !== "function") {
+        console.error(
+          "Bot de reprise : retryScene n'est pas connecté."
+        );
+        return;
+      }
+
       const pendingTasks = Array.from(
         recoveryQueue.values()
       ).filter(
@@ -665,6 +673,10 @@ const recoveryQueue = new Map();
       );
 
       for (const task of pendingTasks) {
+        if (recoveryQueue.get(task.id)?.status !== "queued") {
+          continue;
+        }
+
         if (
           Number(task.attempts || 0) >=
           MAX_AUTO_RECOVERY_ATTEMPTS
@@ -691,22 +703,44 @@ const recoveryQueue = new Map();
             task
           );
 
-
           if (!result || result.success !== true) {
-            task.status =
+            const latestTask =
+              recoveryQueue.get(task.id) || task;
+
+            latestTask.status =
               task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
                 ? "failed"
                 : "queued";
 
-            task.lastError =
+            latestTask.lastError =
               result?.error ||
               "La relance automatique a échoué.";
 
-            await saveRecoveryTask(task, persistent);
+            await saveRecoveryTask(
+              latestTask,
+              persistent
+            );
           }
-          // Si la relance démarre, on laisse le moteur vidéo
-          // mettre à jour la file lors de la réussite ou de l'échec.
+          // Si la relance démarre, le moteur vidéo
+          // gère ensuite l'état de la tâche.
+        } catch (error) {
+          const latestTask =
+            recoveryQueue.get(task.id) || task;
 
+          latestTask.status =
+            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
+              ? "failed"
+              : "queued";
+
+          latestTask.lastError =
+            error.message ||
+            "Erreur pendant la reprise automatique.";
+
+          await saveRecoveryTask(
+            latestTask,
+            persistent
+          );
+        }
       }
     } catch (error) {
       console.error(
@@ -717,6 +751,7 @@ const recoveryQueue = new Map();
       recoveryWorkerRunning = false;
     }
   }
+
 
   setInterval(() => {
     processRecoveryQueue();
