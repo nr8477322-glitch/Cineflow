@@ -2608,13 +2608,14 @@ app.post(
 
       // MONTAGE DE SECOURS À PARTIR DES IMAGES
       if (req.body.mode === "images") {
-        const images =
-          (project.images || []).filter(
-            (img) =>
-              img.status === "generated" &&
-              img.id &&
-              generatedImages.has(img.id)
-          );
+        
+const images =
+  (project.images || []).filter(
+    (img) =>
+      img.status === "generated" &&
+      img.id
+  );
+
 
         if (images.length !== 5) {
           return res.status(400).json({
