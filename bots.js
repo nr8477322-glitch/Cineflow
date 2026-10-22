@@ -770,6 +770,8 @@ if (!result || result.success !== true) {
   await persistTask(task);
 } else {
   task.videoId = result.videoId || task.videoId || null;
+  task.status = "processing";
+  task.lastError = null;
   await persistTask(task);
 }
 
