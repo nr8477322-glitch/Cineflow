@@ -2257,29 +2257,6 @@ app.post("/api/animate", async (req, res) => {
       })
     );
 
-  
-      const imageRecord = (project.images || []).find(
-        (img) =>
-          Number(img.scene) === Number(scene.number)
-      );
-
-      const imageData = imageRecord && imageRecord.id
-        ? generatedImages.get(imageRecord.id)
-        : null;
-
-      if (
-        !imageRecord ||
-        imageRecord.status !== "generated" ||
-        !imageData ||
-        !imageData.data
-      ) {
-        imageErrors.push(Number(scene.number));
-        return null;
-      }
-
-      return { scene, imageData };
-    });
-
 
     if (imageErrors.length > 0) {
       return res.status(400).json({
