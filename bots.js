@@ -748,14 +748,16 @@ if (!result || result.success !== true) {
   const errorMessage =
     result?.error || "La relance automatique a échoué.";
 
+  
   const permanentError =
     result?.permanent === true ||
     errorMessage.includes(
       "Projet introuvable dans la mémoire et dans Neon"
     ) ||
     errorMessage.includes(
-      "Image de cette scène indisponible en mémoire"
+      "image introuvable en mémoire et dans Neon"
     );
+
 
   task.status =
     permanentError ||
