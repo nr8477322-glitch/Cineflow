@@ -296,12 +296,16 @@ async function retryQueuedVideoScene(projectId, sceneNumber) {
   ? await getImageData(imageRecord.id)
   : null;
 
+  
   if (!scene || !imageData?.data) {
     return {
       success: false,
-      error: "Image de cette scène indisponible en mémoire. Regénère l'image avant de relancer."
+      permanent: true,
+      error:
+        "Scène ou image introuvable en mémoire et dans Neon. Vérifie ou regénère l'image avant de relancer."
     };
   }
+
 
   const videoId = makeId("video");
 
@@ -2228,9 +2232,31 @@ app.post("/api/animate", async (req, res) => {
     }
 
     // Vérifier que les cinq images sont disponibles.
+    
     const imageErrors = [];
 
-    const sceneImages = project.scenes.map((scene) => {
+    const sceneImages = await Promise.all(
+      project.scenes.map(async (scene) => {
+        const imageRecord = (project.images || []).find(
+          (img) =>
+            Number(img.scene) === Number(scene.number)
+        );
+
+        const imageData =
+          imageRecord?.id &&
+          imageRecord.status === "generated"
+            ? await getImageData(imageRecord.id)
+            : null;
+
+        if (!imageData?.data) {
+          imageErrors.push(Number(scene.number));
+          return null;
+        }
+
+        return { scene, imageData };
+      })
+    );
+
       const imageRecord = (project.images || []).find(
         (img) =>
           Number(img.scene) === Number(scene.number)
@@ -2396,24 +2422,31 @@ async function buildImageMontage(project, jobId) {
   const clipPaths = [];
 
   try {
+    
     const images = (project.images || [])
       .filter(
         (img) =>
           img.status === "generated" &&
-          img.id &&
-          generatedImages.has(img.id)
+          img.id
       )
       .sort(
         (a, b) =>
           Number(a.scene) - Number(b.scene)
       );
 
+
     if (images.length !== 5) {
       throw new Error("Il faut exactement 5 images.");
     }
 
     for (let i = 0; i < images.length; i++) {
-      const image = generatedImages.get(images[i].id);
+      const image = await getImageData(images[i].id);
+
+if (!image?.data) {
+  throw new Error(
+    `Image de la scène ${images[i].scene} introuvable en mémoire et dans Neon.`
+  );
+}
 
       const imagePath = saveImageFile(image.data);
 
