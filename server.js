@@ -470,55 +470,54 @@ async function followVideoOperation(
         outputPath
     });
 
-   video.status =
-  "ready";
+   
+    video.status = "ready";
+    video.filePath = outputPath;
+    video.operation = operation;
 
-video.filePath =
-  outputPath;
+    generatedVideos.set(videoId, video);
 
-const project =
-  projects.find(
-    (item) =>
-      item.id ===
-      video.projectId
-  );
-
-if (project && project.videos) {
-  const projectVideo =
-    project.videos.find(
-      (item) =>
-        item.id ===
-        videoId
+    const project = projects.find(
+      (item) => item.id === video.projectId
     );
 
-  if (projectVideo) {
-    projectVideo.status =
-      "ready";
+    if (project && Array.isArray(project.videos)) {
+      const projectVideo = project.videos.find(
+        (item) => item.id === videoId
+      );
 
-    projectVideo.filePath =
-      outputPath;
-  }
-}
+      if (projectVideo) {
+        projectVideo.status = "ready";
+        projectVideo.filePath = outputPath;
+        projectVideo.provider = "veo";
+      }
 
-    video.operation =
-      operation;
+      try {
+        await saveProjectToDatabase(project);
+      } catch (saveError) {
+        console.error(
+          "Vidéo prête, mais sauvegarde du projet échouée :",
+          saveError.message
+        );
+      }
 
-    generatedVideos.set(
-      videoId,
-      video
-    );
-if (project) {
-  await saveProjectToDatabase(project);
+      try {
+        if (botsRouter?.updateRecoveryTask) {
+          await botsRouter.updateRecoveryTask({
+            projectId: project.id,
+            sceneNumber: Number(video.scene),
+            status: "completed",
+            videoId
+          });
+        }
+      } catch (queueError) {
+        console.error(
+          "Vidéo prête, mais mise à jour de la file échouée :",
+          queueError.message
+        );
+      }
+    }
 
-  if (botsRouter?.updateRecoveryTask) {
-    await botsRouter.updateRecoveryTask({
-      projectId: project.id,
-      sceneNumber: Number(video.scene),
-      status: "completed",
-      videoId
-    });
-  }
-}
     console.log(
       `✅ MP4 scène ${video.scene} sauvegardé : ${outputPath}`
     );
