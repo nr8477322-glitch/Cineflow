@@ -2257,6 +2257,7 @@ app.post("/api/animate", async (req, res) => {
       })
     );
 
+  
       const imageRecord = (project.images || []).find(
         (img) =>
           Number(img.scene) === Number(scene.number)
@@ -2278,6 +2279,7 @@ app.post("/api/animate", async (req, res) => {
 
       return { scene, imageData };
     });
+
 
     if (imageErrors.length > 0) {
       return res.status(400).json({
