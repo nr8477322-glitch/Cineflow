@@ -40,6 +40,88 @@ const databaseReady = pool
           )
         `);
 
+        // CINEFLOW WALLET : COMPTES DES CRÉATEURS
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cineflow_wallets (
+            user_id TEXT PRIMARY KEY,
+            currency TEXT NOT NULL DEFAULT 'XOF',
+            balance_minor BIGINT NOT NULL DEFAULT 0
+              CHECK (balance_minor >= 0),
+            pending_minor BIGINT NOT NULL DEFAULT 0
+              CHECK (pending_minor >= 0),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        // HISTORIQUE IMMUTABLE DES OPÉRATIONS
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cineflow_wallet_transactions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            type TEXT NOT NULL CHECK (
+              type IN (
+                'earning',
+                'withdrawal',
+                'refund',
+                'adjustment'
+              )
+            ),
+            amount_minor BIGINT NOT NULL
+              CHECK (amount_minor > 0),
+            currency TEXT NOT NULL DEFAULT 'XOF',
+            status TEXT NOT NULL CHECK (
+              status IN (
+                'pending',
+                'confirmed',
+                'rejected',
+                'paid'
+              )
+            ),
+            reference TEXT UNIQUE,
+            description TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        // DEMANDES DE RETRAIT
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cineflow_wallet_withdrawals (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            amount_minor BIGINT NOT NULL
+              CHECK (amount_minor > 0),
+            currency TEXT NOT NULL DEFAULT 'XOF',
+            method TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+              CHECK (
+                status IN (
+                  'pending',
+                  'approved',
+                  'processing',
+                  'paid',
+                  'rejected',
+                  'cancelled'
+                )
+              ),
+            provider_reference TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS
+          cineflow_wallet_transactions_user_idx
+          ON cineflow_wallet_transactions (user_id, created_at DESC)
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS
+          cineflow_wallet_withdrawals_user_idx
+          ON cineflow_wallet_withdrawals (user_id, created_at DESC)
+        `);
+
         console.log("Neon : tables prêtes.");
         return true;
       } catch (error) {
