@@ -1601,16 +1601,40 @@ app.post("/api/tts/generate-project", async (req, res) => {
       });
     }
 
-    const project = projects.find(
-      item => item.id === req.body.projectId
+   let project = projects.find(
+  item => item.id === req.body.projectId
+);
+
+if (!project && pool) {
+  const ready = await databaseReady;
+
+  if (ready) {
+    const result = await pool.query(
+      `SELECT data
+       FROM cineflow_projects
+       WHERE id = $1
+       LIMIT 1`,
+      [req.body.projectId]
     );
 
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        error: "Projet introuvable."
-      });
+    if (result.rows.length > 0) {
+      project = result.rows[0].data;
+
+      if (project && project.id === req.body.projectId) {
+        projects.unshift(project);
+      } else {
+        project = null;
+      }
     }
+  }
+}
+
+if (!project) {
+  return res.status(404).json({
+    success: false,
+    error: "Projet introuvable dans la mémoire et dans Neon."
+  });
+} 
 
     if (!Array.isArray(project.scenes) || project.scenes.length !== 5) {
       return res.status(400).json({
@@ -3131,7 +3155,41 @@ const images =
           os.tmpdir(),
           `${jobId}.txt`
         );
+// Préparer la liste des voix des cinq scènes.
+const audioTracks = (project.audio?.tracks || [])
+  .slice()
+  .sort((a, b) => Number(a.sceneNumber) - Number(b.sceneNumber));
 
+if (
+  audioTracks.length !== 5 ||
+  audioTracks.some(
+    (track, index) =>
+      Number(track.sceneNumber) !== index + 1 ||
+      !track.filePath ||
+      !fs.existsSync(track.filePath)
+  )
+) {
+  return res.status(400).json({
+    success: false,
+    error:
+      "Les cinq pistes vocales ne sont pas disponibles. Génère d'abord les voix du projet."
+  });
+}
+
+const audioConcatList = path.join(
+  os.tmpdir(),
+  `${jobId}-audio.txt`
+);
+
+fs.writeFileSync(
+  audioConcatList,
+  audioTracks
+    .map(
+      track =>
+        `file '${track.filePath.replace(/'/g, "'\\''")}'`
+    )
+    .join("\n")
+);
       fs.writeFileSync(
         concatList,
         sceneVideos
