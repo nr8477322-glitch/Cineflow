@@ -7,9 +7,9 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
-
 const { Pool } = require("pg");
-
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
@@ -121,7 +121,14 @@ const databaseReady = pool
           cineflow_wallet_withdrawals_user_idx
           ON cineflow_wallet_withdrawals (user_id, created_at DESC)
         `);
-
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS cineflow_users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`);
         console.log("Neon : tables prêtes.");
         return true;
       } catch (error) {
@@ -138,6 +145,240 @@ app.use(express.json({ limit: "120mb" }));
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Vérifie que l'utilisateur possède un jeton valide.
+function requireAuth(req, res, next) {
+  if (!JWT_SECRET) {
+    return res.status(503).json({
+      success: false,
+      error: "Authentification non configurée."
+    });
+  }
+
+  const authorization = req.headers.authorization || "";
+  const parts = authorization.split(" ");
+
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    return res.status(401).json({
+      success: false,
+      error: "Connexion requise."
+    });
+  }
+
+  try {
+    const payload = jwt.verify(parts[1], JWT_SECRET);
+
+    if (!payload.sub) {
+      throw new Error("Jeton sans identifiant utilisateur.");
+    }
+
+    req.user = { id: payload.sub };
+    next();
+  } catch {
+    return res.status(401).json({
+      success: false,
+      error: "Jeton invalide ou expiré."
+    });
+  }
+}
+
+// Inscription d'un créateur.
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    if (!pool || !(await databaseReady)) {
+      return res.status(503).json({
+        success: false,
+        error: "Base de données indisponible."
+      });
+    }
+
+    if (!JWT_SECRET || JWT_SECRET.length < 32) {
+      return res.status(503).json({
+        success: false,
+        error: "JWT_SECRET doit être configuré."
+      });
+    }
+
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    const password = req.body?.password;
+
+    if (
+      email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Adresse e-mail invalide."
+      });
+    }
+
+    if (
+      typeof password !== "string" ||
+      password.length < 12 ||
+      Buffer.byteLength(password, "utf8") > 72
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Le mot de passe doit contenir au moins 12 caractères et au maximum 72 octets."
+      });
+    }
+
+    const id = require("crypto").randomUUID();
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const result = await pool.query(
+      `INSERT INTO cineflow_users (id, email, password_hash)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO NOTHING
+       RETURNING id, email`,
+      [id, email, passwordHash]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(409).json({
+        success: false,
+        error: "Impossible de créer ce compte avec cette adresse."
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO cineflow_wallets (user_id, currency)
+       VALUES ($1, 'XOF')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [id]
+    );
+
+    const token = jwt.sign(
+      { sub: id },
+      JWT_SECRET,
+      { expiresIn: "7d", algorithm: "HS256" }
+    );
+
+    return res.status(201).json({
+      success: true,
+      user: result.rows[0],
+      token
+    });
+  } catch (error) {
+    console.error("Inscription Cineflow :", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Erreur pendant l'inscription."
+    });
+  }
+});
+
+// Connexion d'un créateur.
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    if (!pool || !(await databaseReady)) {
+      return res.status(503).json({
+        success: false,
+        error: "Base de données indisponible."
+      });
+    }
+
+    if (!JWT_SECRET || JWT_SECRET.length < 32) {
+      return res.status(503).json({
+        success: false,
+        error: "JWT_SECRET doit être configuré."
+      });
+    }
+
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    const password = req.body?.password;
+
+    if (
+      !email ||
+      email.length > 254 ||
+      typeof password !== "string" ||
+      Buffer.byteLength(password, "utf8") > 72
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Identifiants invalides."
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT id, email, password_hash
+       FROM cineflow_users
+       WHERE email = $1`,
+      [email]
+    );
+
+    if (
+      result.rowCount !== 1 ||
+      !(await bcrypt.compare(
+        password,
+        result.rows[0].password_hash
+      ))
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: "E-mail ou mot de passe incorrect."
+      });
+    }
+
+    const user = result.rows[0];
+    const token = jwt.sign(
+      { sub: user.id },
+      JWT_SECRET,
+      { expiresIn: "7d", algorithm: "HS256" }
+    );
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email
+      },
+      token
+    });
+  } catch (error) {
+    console.error("Connexion Cineflow :", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Erreur pendant la connexion."
+    });
+  }
+});
+
+// Vérifier le compte connecté.
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, email, created_at
+       FROM cineflow_users
+       WHERE id = $1`,
+      [req.user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        error: "Compte introuvable."
+      });
+    }
+
+    return res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Vérification du compte :", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de vérifier le compte."
+    });
+  }
+});
 
 const CLOUDFLARE_API_TOKEN =
   process.env.CLOUDFLARE_API_TOKEN;
