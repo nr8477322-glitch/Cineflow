@@ -3240,13 +3240,14 @@ audioConcatList,
 "1:a:0",
 "-c:v",
 "libx264",
-          "-pix_fmt",
-          "yuv420p",
-          "-c:a",
-          "aac",
-          "-movflags",
-          "+faststart",
-          outputPath
+"-pix_fmt",
+"yuv420p",
+"-c:a",
+"aac",
+"-shortest",
+"-movflags",
+"+faststart",
+outputPath
     ],
     async (error) => {
           const job =
