@@ -450,7 +450,7 @@ app.get(
       const result = await pool.query(
         `SELECT
            id,
-           transaction_type,
+           type,
            amount_minor,
            currency,
            status,
