@@ -28,7 +28,12 @@ const databaseReady = pool
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
-
+        // Colonnes ImageKit — migration sans supprimer les images existantes
+        await pool.query(`
+          ALTER TABLE cineflow_images
+          ADD COLUMN IF NOT EXISTS imagekit_url TEXT,
+          ADD COLUMN IF NOT EXISTS imagekit_file_id TEXT
+        `);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS cineflow_images (
             id TEXT PRIMARY KEY,
@@ -652,38 +657,79 @@ async function uploadImageToImageKit(imageId, image) {
   }
 }
 async function saveImageToDatabase(imageId, image) {
-  if (!pool || !imageId || !image?.data) return false;
+  if (!pool || !imageId || !image?.data) {
+    return false;
+  }
 
   try {
     const ready = await databaseReady;
     if (!ready) return false;
 
+    // Envoi facultatif vers ImageKit.
+    // Si ImageKit échoue, Neon reste la sauvegarde principale.
+    let imageKitResult = null;
+
+    if (IMAGEKIT_ENABLED) {
+      imageKitResult = await uploadImageToImageKit(
+        imageId,
+        image
+      );
+    }
+
     await pool.query(
       `INSERT INTO cineflow_images
-        (id, project_id, scene_number, mime_type, data, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+        (
+          id,
+          project_id,
+          scene_number,
+          mime_type,
+          data,
+          imagekit_url,
+          imagekit_file_id,
+          updated_at
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
        ON CONFLICT (id) DO UPDATE SET
          project_id = EXCLUDED.project_id,
          scene_number = EXCLUDED.scene_number,
          mime_type = EXCLUDED.mime_type,
          data = EXCLUDED.data,
+         imagekit_url = COALESCE(
+           EXCLUDED.imagekit_url,
+           cineflow_images.imagekit_url
+         ),
+         imagekit_file_id = COALESCE(
+           EXCLUDED.imagekit_file_id,
+           cineflow_images.imagekit_file_id
+         ),
          updated_at = NOW()`,
       [
         imageId,
         image.projectId,
         Number(image.scene) || null,
         image.mimeType || "image/png",
-        image.data
+        image.data,
+        imageKitResult?.url || image.imagekitUrl || null,
+        imageKitResult?.fileId || image.imagekitFileId || null
       ]
     );
 
+    // Conserve également les références en mémoire.
+    if (imageKitResult) {
+      image.imagekitUrl = imageKitResult.url;
+      image.imagekitFileId = imageKitResult.fileId;
+    }
+
     return true;
   } catch (error) {
-    console.error("Erreur de sauvegarde image Neon :", error.message);
+    console.error(
+      "Erreur de sauvegarde image Neon :",
+      error.message
+    );
+
     return false;
   }
 }
-
 async function loadImageFromDatabase(imageId) {
   if (!pool || !imageId) return null;
 
@@ -692,7 +738,14 @@ async function loadImageFromDatabase(imageId) {
     if (!ready) return null;
 
     const result = await pool.query(
-      `SELECT id, project_id, scene_number, mime_type, data
+      `SELECT
+         id,
+         project_id,
+         scene_number,
+         mime_type,
+         data,
+         imagekit_url,
+         imagekit_file_id
        FROM cineflow_images
        WHERE id = $1
        LIMIT 1`,
@@ -708,18 +761,24 @@ async function loadImageFromDatabase(imageId) {
       projectId: row.project_id,
       scene: row.scene_number,
       mimeType: row.mime_type || "image/png",
-      data: row.data
+      data: row.data,
+      imagekitUrl: row.imagekit_url || null,
+      imagekitFileId: row.imagekit_file_id || null
     };
 
     generatedImages.set(imageId, image);
+
     return image;
   } catch (error) {
-    console.error("Erreur de récupération image Neon :", error.message);
+    console.error(
+      "Erreur de récupération image Neon :",
+      error.message
+    );
+
     return null;
   }
 }
-
-async function getImageData(imageId) {
+    const ready = awaitgetImageData(imageId) {
   const image = generatedImages.get(imageId);
 
   if (image?.data) return image;
