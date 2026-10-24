@@ -28,13 +28,7 @@ const databaseReady = pool
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
-        // Colonnes ImageKit — migration sans supprimer les images existantes
-        await pool.query(`
-          ALTER TABLE cineflow_images
-          ADD COLUMN IF NOT EXISTS imagekit_url TEXT,
-          ADD COLUMN IF NOT EXISTS imagekit_file_id TEXT
-        `);
-        await pool.query(`
+             await pool.query(`
           CREATE TABLE IF NOT EXISTS cineflow_images (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -58,7 +52,12 @@ const databaseReady = pool
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
-
+// Colonnes ImageKit — migration sans supprimer les images existantes
+await pool.query(`
+  ALTER TABLE cineflow_images
+  ADD COLUMN IF NOT EXISTS imagekit_url TEXT,
+  ADD COLUMN IF NOT EXISTS imagekit_file_id TEXT
+`);
         // HISTORIQUE IMMUTABLE DES OPÉRATIONS
         await pool.query(`
           CREATE TABLE IF NOT EXISTS cineflow_wallet_transactions (
