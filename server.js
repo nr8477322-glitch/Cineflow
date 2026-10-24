@@ -3244,10 +3244,10 @@ audioConcatList,
 "yuv420p",
 "-c:a",
 "aac",
-"-shortest",
 "-movflags",
 "+faststart",
 outputPath
+
     ],
     async (error) => {
           const job =
