@@ -379,7 +379,57 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     });
   }
 });
+// ==================================================
+// PORTEFEUILLE CINEFLOW — SOLDE DE L'UTILISATEUR
+// ==================================================
+app.get("/api/wallet", requireAuth, async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({
+        success: false,
+        error: "Base de données indisponible."
+      });
+    }
 
+    await databaseReady;
+
+    const result = await pool.query(
+      `SELECT currency, balance_minor, pending_minor
+       FROM cineflow_wallets
+       WHERE user_id = $1
+       LIMIT 1`,
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Portefeuille introuvable."
+      });
+    }
+
+    const wallet = result.rows[0];
+
+    return res.json({
+      success: true,
+      wallet: {
+        currency: wallet.currency,
+        balance: wallet.balance_minor,
+        pending: wallet.pending_minor
+      }
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lecture portefeuille :",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "Impossible de récupérer le portefeuille."
+    });
+  }
+});
 const CLOUDFLARE_API_TOKEN =
   process.env.CLOUDFLARE_API_TOKEN;
 
