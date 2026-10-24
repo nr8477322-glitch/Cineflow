@@ -1732,7 +1732,7 @@ if (!project) {
       type: "dialogue",
       tracks
     };
-
+await saveProjectToDatabase(project);
     return res.json({
       success: true,
       message: "Voix générées pour les 5 scènes.",
@@ -3227,9 +3227,19 @@ fs.writeFileSync(
           "-safe",
           "0",
           "-i",
-          concatList,
-          "-c:v",
-          "libx264",
+concatList,
+"-f",
+"concat",
+"-safe",
+"0",
+"-i",
+audioConcatList,
+"-map",
+"0:v:0",
+"-map",
+"1:a:0",
+"-c:v",
+"libx264",
           "-pix_fmt",
           "yuv420p",
           "-c:a",
