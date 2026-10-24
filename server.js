@@ -3218,6 +3218,7 @@ fs.writeFileSync(
         status: "processing"
       });
 
+      
       execFile(
         ffmpegPath,
         [
@@ -3227,31 +3228,29 @@ fs.writeFileSync(
           "-safe",
           "0",
           "-i",
-concatList,
-"-f",
-"concat",
-"-safe",
-"0",
-"-i",
-audioConcatList,
-"-map",
-"0:v:0",
-"-map",
-"1:a:0",
-"-c:v",
-"libx264",
-"-pix_fmt",
-"yuv420p",
-"-c:a",
-"aac",
-"-movflags",
-"+faststart",
-outputPath
-
-    ],
-    async (error) => {
-          const job =
-            jobs.get(jobId);
+          concatList,
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          audioConcatList,
+          "-map",
+          "0:v:0",
+          "-map",
+          "1:a:0",
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          "-c:a",
+          "aac",
+          "-movflags",
+          "+faststart",
+          outputPath
+        ],
+        async (error) => {
+          const job = jobs.get(jobId);
 
           if (!job) {
             return;
@@ -3265,10 +3264,10 @@ outputPath
 
             job.status = "error";
             job.error = error.message;
-
             project.status = "error";
 
             jobs.set(jobId, job);
+            await saveProjectToDatabase(project);
             return;
           }
 
@@ -3282,12 +3281,10 @@ outputPath
           project.finalVideo = {
             path: outputPath,
             jobId,
-            createdAt:
-              new Date().toISOString()
+            createdAt: new Date().toISOString()
           };
 
-          await 
-  saveProjectToDatabase(project);
+          await saveProjectToDatabase(project);
           jobs.set(jobId, job);
 
           console.log(
@@ -3295,6 +3292,7 @@ outputPath
           );
         }
       );
+
 
     } catch (error) {
       console.error(
