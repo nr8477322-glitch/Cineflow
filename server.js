@@ -147,7 +147,23 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const JWT_SECRET = process.env.JWT_SECRET;
+// =========================================================
+// IMAGEKIT — STOCKAGE DES IMAGES CINEFLOW
+// =========================================================
 
+const IMAGEKIT_PRIVATE_KEY =
+  process.env.IMAGEKIT_PRIVATE_KEY;
+
+const IMAGEKIT_URL_ENDPOINT =
+  process.env.IMAGEKIT_URL_ENDPOINT;
+
+const IMAGEKIT_UPLOAD_URL =
+  "https://upload.imagekit.io/api/v1/files/upload";
+
+const IMAGEKIT_ENABLED = Boolean(
+  IMAGEKIT_PRIVATE_KEY &&
+  IMAGEKIT_URL_ENDPOINT
+);
 // Vérifie que l'utilisateur possède un jeton valide.
 function requireAuth(req, res, next) {
   if (!JWT_SECRET) {
@@ -556,6 +572,83 @@ async function saveProjectToDatabase(project) {
     );
 
     return false;
+  }
+}
+// =========================================================
+// ENVOI D'UNE IMAGE VERS IMAGEKIT
+// =========================================================
+
+async function uploadImageToImageKit(imageId, image) {
+  if (
+    !IMAGEKIT_ENABLED ||
+    !imageId ||
+    !image?.data
+  ) {
+    return null;
+  }
+
+  try {
+    const imageBuffer = Buffer.from(
+      image.data,
+      "base64"
+    );
+
+    const form = new FormData();
+
+    form.append(
+      "file",
+      new Blob(
+        [imageBuffer],
+        { type: image.mimeType || "image/png" }
+      ),
+      `${imageId}.png`
+    );
+
+    form.append("fileName", `${imageId}.png`);
+    form.append("folder", "/cineflow");
+
+    const response = await fetch(
+      IMAGEKIT_UPLOAD_URL,
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            "Basic " +
+            Buffer.from(
+              IMAGEKIT_PRIVATE_KEY + ":"
+            ).toString("base64")
+        },
+        body: form
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error(
+        "ImageKit : échec de l'envoi :",
+        result.message || response.status
+      );
+
+      return null;
+    }
+
+    console.log(
+      "Image envoyée vers ImageKit :",
+      imageId
+    );
+
+    return {
+      url: result.url || null,
+      fileId: result.fileId || null
+    };
+  } catch (error) {
+    console.error(
+      "Erreur ImageKit :",
+      error.message
+    );
+
+    return null;
   }
 }
 async function saveImageToDatabase(imageId, image) {
