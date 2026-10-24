@@ -1557,10 +1557,10 @@ app.post("/api/tts/test-scene", async (req, res) => {
         type: "user_input",
         content
       }],
+      
       response_format: { type: "audio" },
       generation_config: {
         speech_config: {
-          mode: "conversational",
           speakers: [
             { speaker: speakers[0], voice: "Kore" },
             ...(speakers[1]
@@ -1569,6 +1569,7 @@ app.post("/api/tts/test-scene", async (req, res) => {
           ]
         }
       }
+
     });
 
     const audioBase64 = interaction.output_audio?.data;
@@ -1668,10 +1669,10 @@ app.post("/api/tts/generate-project", async (req, res) => {
       const interaction = await ai.interactions.create({
         model: "gemini-3.8-flash-tts",
         input: [{ type: "user_input", content }],
+        
         response_format: { type: "audio" },
         generation_config: {
           speech_config: {
-            mode: "conversational",
             speakers: [
               { speaker: speakers[0], voice: "Kore" },
               ...(speakers[1]
@@ -1680,6 +1681,7 @@ app.post("/api/tts/generate-project", async (req, res) => {
             ]
           }
         }
+
       });
 
       const audioBase64 = interaction.output_audio?.data;
