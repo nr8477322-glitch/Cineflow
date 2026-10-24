@@ -430,6 +430,57 @@ app.get("/api/wallet", requireAuth, async (req, res) => {
     });
   }
 });
+// ==================================================
+// PORTEFEUILLE CINEFLOW — HISTORIQUE DES TRANSACTIONS
+// ==================================================
+app.get(
+  "/api/wallet/transactions",
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!pool) {
+        return res.status(503).json({
+          success: false,
+          error: "Base de données indisponible."
+        });
+      }
+
+      await databaseReady;
+
+      const result = await pool.query(
+        `SELECT
+           id,
+           transaction_type,
+           amount_minor,
+           currency,
+           status,
+           reference,
+           created_at
+         FROM cineflow_wallet_transactions
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [req.user.id]
+      );
+
+      return res.json({
+        success: true,
+        count: result.rows.length,
+        transactions: result.rows
+      });
+    } catch (error) {
+      console.error(
+        "Erreur historique portefeuille :",
+        error.message
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de récupérer l'historique."
+      });
+    }
+  }
+);
 const CLOUDFLARE_API_TOKEN =
   process.env.CLOUDFLARE_API_TOKEN;
 
