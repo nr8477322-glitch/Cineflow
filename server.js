@@ -609,7 +609,9 @@ async function uploadImageToImageKit(imageId, image) {
     );
 
     form.append("fileName", `${imageId}.png`);
-    form.append("folder", "/cineflow");
+form.append("folder", "/cineflow");
+form.append("useUniqueFileName", "false");
+form.append("overwriteFile", "true");
 
     const response = await fetch(
       IMAGEKIT_UPLOAD_URL,
