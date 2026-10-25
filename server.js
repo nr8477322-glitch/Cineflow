@@ -779,13 +779,13 @@ async function loadImageFromDatabase(imageId) {
     return null;
   }
 }
-    const ready = awaitgetImageData(imageId) {
+  async function getImageData(imageId) {
   const image = generatedImages.get(imageId);
 
   if (image?.data) return image;
 
   return await loadImageFromDatabase(imageId);
-}
+  }
 const accounts = {
   youtube: false,
   tiktok: false,
