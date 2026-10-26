@@ -8531,7 +8531,6 @@ async function jarvisSend(event) {
     (data.geminiConnected ? "connecté." : "non connecté.") +
     " Aucun crédit de génération n'a été utilisé."
 );
-      );
     } catch (error) {
       jarvisRespond(
         "Vérification impossible : " + error.message,
