@@ -8524,7 +8524,7 @@ async function jarvisSend(event) {
         throw new Error(data.error || "Serveur indisponible.");
       }
 
-      jarvisRespond(
+     jarvisRespond(
   "Diagnostic Cineflow : " +
     (data.message || "Serveur joignable.") +
     " Gemini : " +
