@@ -5381,6 +5381,84 @@ textarea{
   }
 }
 
+/* JARVIS — interface lumineuse adaptative */
+.jarvis-panel {
+  --jarvis-color: #35d9ff;
+  position: relative;
+  margin: 24px 0;
+  padding: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(53,217,255,.35);
+  border-radius: 22px;
+  background: radial-gradient(ellipse at 50% 15%,
+    rgba(53,217,255,.12), transparent 60%), #080f20;
+  box-shadow: 0 0 32px rgba(53,217,255,.08);
+}
+.jarvis-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.jarvis-label { color: var(--jarvis-color); font-size: 10px; letter-spacing: 3px; }
+.jarvis-heading h2 { font-size: 30px; letter-spacing: 7px; margin: 5px 0; }
+.jarvis-heading p, .jarvis-note { color: #91a5c4; font-size: 12px; }
+.jarvis-status {
+  color: var(--jarvis-color);
+  border: 1px solid currentColor;
+  border-radius: 20px;
+  padding: 7px 10px;
+  font-size: 10px;
+}
+.jarvis-core-wrap {
+  width: 150px; height: 150px; margin: 28px auto 20px;
+  position: relative; display: grid; place-items: center;
+}
+.jarvis-core {
+  width: 82px; height: 82px; border-radius: 50%;
+  border: 1px solid var(--jarvis-color);
+  color: white; font-size: 32px; cursor: pointer;
+  background: radial-gradient(circle, #173b62, #071020 72%);
+  box-shadow: 0 0 20px var(--jarvis-color),
+    inset 0 0 20px rgba(53,217,255,.3);
+  animation: jarvisPulse 2.8s ease-in-out infinite;
+}
+.jarvis-ring {
+  position: absolute; inset: 5px; border-radius: 50%;
+  border: 1px solid var(--jarvis-color); opacity: .6;
+}
+.jarvis-ring-one { animation: jarvisSpin 9s linear infinite; }
+.jarvis-ring-two {
+  inset: 17px; border-style: dashed;
+  animation: jarvisSpin 14s linear infinite reverse;
+}
+.jarvis-reply { text-align: center; margin: 14px 0; line-height: 1.6; }
+.jarvis-form { display: flex; gap: 8px; margin-top: 18px; }
+.jarvis-form input {
+  flex: 1; min-width: 0; padding: 13px;
+  color: white; background: #101b30;
+  border: 1px solid #29405d; border-radius: 12px;
+}
+.jarvis-form button, .jarvis-voice-button {
+  padding: 12px 15px; border-radius: 12px;
+  color: white; background: #123752;
+  border: 1px solid var(--jarvis-color);
+}
+.jarvis-voice-button { display: block; margin: 12px auto; }
+.jarvis-note { text-align: center; margin-top: 14px; }
+@keyframes jarvisPulse {
+  50% { transform: scale(1.06); box-shadow: 0 0 36px var(--jarvis-color); }
+}
+@keyframes jarvisSpin { to { transform: rotate(360deg); } }
+@media(max-width:520px) {
+  .jarvis-panel { padding: 17px; }
+  .jarvis-form { flex-direction: column; }
+  .jarvis-form button { width: 100%; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .jarvis-core, .jarvis-ring { animation: none; }
+}
+
 </style>
 
 </head>
@@ -5535,6 +5613,44 @@ textarea{
     </div>
 
   </section>
+
+<!-- JARVIS : panneau principal -->
+<section class="jarvis-panel" id="jarvis">
+  <div class="jarvis-heading">
+    <div>
+      <span class="jarvis-label">CINEFLOW INTELLIGENCE</span>
+      <h2>JARVIS</h2>
+      <p>Ton assistant de création</p>
+    </div>
+    <span id="jarvisStatus" class="jarvis-status">PRÊT</span>
+  </div>
+
+  <div class="jarvis-core-wrap">
+    <div class="jarvis-ring jarvis-ring-one"></div>
+    <div class="jarvis-ring jarvis-ring-two"></div>
+    <button id="jarvisCore" class="jarvis-core"
+      type="button" aria-label="Activer la voix de JARVIS"
+      onclick="jarvisStartVoice()">✦</button>
+  </div>
+
+  <p id="jarvisReply" class="jarvis-reply">
+    Bonjour ! Que veux-tu créer aujourd'hui ?
+  </p>
+
+  <form id="jarvisForm" class="jarvis-form"
+    onsubmit="jarvisSend(event)">
+    <input id="jarvisInput" type="text"
+      placeholder="Écris une commande à JARVIS…"
+      autocomplete="off" maxlength="500" required>
+    <button type="submit">Envoyer ↗</button>
+  </form>
+
+  <button class="jarvis-voice-button" type="button"
+    onclick="jarvisStartVoice()">🎙️ Parler à JARVIS</button>
+  <p class="jarvis-note">
+    Les commandes seront connectées aux fonctions Cineflow après validation.
+  </p>
+</section>
 
   <!-- QUICK STATS -->
 
@@ -8296,6 +8412,76 @@ async function loadEverything(){
 ========================================================= */
 
 loadEverything();
+
+/* JARVIS — couleurs selon l'heure locale */
+function jarvisApplyTheme() {
+  const hour = new Date().getHours();
+  let color = "#35d9ff";
+
+  if (hour >= 6 && hour < 11) color = "#ffbd59";
+  else if (hour >= 11 && hour < 17) color = "#35d9ff";
+  else if (hour >= 17 && hour < 20) color = "#c18aff";
+  else color = "#668cff";
+
+  const panel = document.querySelector(".jarvis-panel");
+  if (panel) panel.style.setProperty("--jarvis-color", color);
+}
+
+jarvisApplyTheme();
+setInterval(jarvisApplyTheme, 60000);
+
+/* Réponse vocale locale, sans appel à une IA payante */
+function jarvisSpeak(text) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "fr-FR";
+  window.speechSynthesis.speak(utterance);
+}
+
+/* Entrée vocale, si le navigateur la prend en charge */
+function jarvisStartVoice() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    document.getElementById("jarvisReply").textContent =
+      "La reconnaissance vocale n'est pas disponible dans ce navigateur. Écris ta commande.";
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "fr-FR";
+  recognition.onstart = () => {
+    document.getElementById("jarvisStatus").textContent = "ÉCOUTE";
+  };
+  recognition.onresult = event => {
+    document.getElementById("jarvisInput").value =
+      event.results[0][0].transcript;
+  };
+  recognition.onerror = () => {
+    document.getElementById("jarvisReply").textContent =
+      "Je n'ai pas pu comprendre. Tu peux réessayer ou écrire ta commande.";
+  };
+  recognition.onend = () => {
+    document.getElementById("jarvisStatus").textContent = "PRÊT";
+  };
+  recognition.start();
+}
+
+/* Pour le moment, aucun travail serveur n'est lancé */
+function jarvisSend(event) {
+  event.preventDefault();
+  const input = document.getElementById("jarvisInput");
+  const reply = document.getElementById("jarvisReply");
+
+  if (!input.value.trim()) return;
+
+  reply.textContent =
+    "Commande reçue : « " + input.value.trim() +
+    " ». La connexion au moteur JARVIS doit encore être intégrée.";
+  document.getElementById("jarvisStatus").textContent = "EN ATTENTE";
+}
 
 </script>
 
