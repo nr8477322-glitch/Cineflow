@@ -8525,7 +8525,12 @@ async function jarvisSend(event) {
       }
 
       jarvisRespond(
-        "Réponse du serveur reçue. Consulte le tableau de bord pour les détails. Aucun crédit de génération n'a été utilisé."
+  "Diagnostic Cineflow : " +
+    (data.message || "Serveur joignable.") +
+    " Gemini : " +
+    (data.geminiConnected ? "connecté." : "non connecté.") +
+    " Aucun crédit de génération n'a été utilisé."
+);
       );
     } catch (error) {
       jarvisRespond(
