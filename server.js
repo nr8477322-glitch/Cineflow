@@ -8786,6 +8786,7 @@ jarvisRespond(
   "Je n'ai pas reconnu cette commande. " + suggestion +
   " Dis « aide » pour afficher les commandes disponibles."
 );
+}
 
 
 </script>
