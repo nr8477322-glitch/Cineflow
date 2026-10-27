@@ -8599,10 +8599,32 @@ function jarvisStartVoice() {
     document.getElementById("jarvisStatus").textContent = "ÉCOUTE";
   };
   recognition.onresult = event => {
-    document.getElementById("jarvisInput").value =
-      event.results[0][0].transcript;
-  };
-  recognition.onerror = () => {
+  const input = document.getElementById("jarvisInput");
+
+  if (!input) return;
+
+  input.value = event.results[0][0].transcript.trim();
+
+  // Afficher la commande reconnue avant son envoi.
+  const reply = document.getElementById("jarvisReply");
+  if (reply) {
+    reply.textContent = "Commande reconnue : " + input.value;
+  }
+
+  // Envoyer la commande dans le système existant de JARVIS.
+  const form = document.getElementById("jarvisForm");
+  if (form) {
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event("submit", {
+        bubbles: true,
+        cancelable: true
+      }));
+    }
+  }
+};
+   recognition.onerror = () => {
     document.getElementById("jarvisReply").textContent =
       "Je n'ai pas pu comprendre. Tu peux réessayer ou écrire ta commande.";
   };
@@ -8750,8 +8772,20 @@ async function jarvisSend(event) {
     return;
   }
 
-  jarvisRespond("Commande non reconnue. Dis « aide » pour voir les commandes.");
-}
+const suggestions = [
+  "Je peux t'aider à préparer une histoire de film.",
+  "Je peux t'aider à organiser les scènes de ton projet.",
+  "Je peux vérifier l'état du serveur Cineflow.",
+  "Je peux ouvrir le créateur ou afficher tes projets."
+];
+
+const suggestion =
+  suggestions[Math.floor(Math.random() * suggestions.length)];
+
+jarvisRespond(
+  "Je n'ai pas reconnu cette commande. " + suggestion +
+  " Dis « aide » pour afficher les commandes disponibles."
+);
 
 
 </script>
