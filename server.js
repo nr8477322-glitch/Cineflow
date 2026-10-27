@@ -8524,13 +8524,14 @@ async function jarvisSend(event) {
         throw new Error(data.error || "Serveur indisponible.");
       }
 
-          jarvisRespond(
+              jarvisRespond(
         "Diagnostic Cineflow : " +
-          (data.message || "Serveur joignable.") +
-          " Gemini : " +
-          (data.geminiConnected ? "connecté." : "non connecté.") +
-          " Aucun crédit de génération n'a été utilisé."
-      );
+        (data.message || "Serveur joignable.") +
+        " Gemini : " +
+        (data.geminiConnected ? "connecté." : "non connecté.") +
+        " Aucun crédit de génération n'a été utilisé."
+      );  
+      
     } catch (error) {
       jarvisRespond(
         "Vérification impossible : " + error.message,
