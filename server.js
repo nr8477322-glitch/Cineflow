@@ -5648,8 +5648,8 @@ textarea{
   <button class="jarvis-voice-button" type="button"
     onclick="jarvisStartVoice()">🎙️ Parler à JARVIS</button>
   <p class="jarvis-note">
-    Les commandes seront connectées aux fonctions Cineflow après validation.
-  </p>
+  Navigation et commandes disponibles. Les actions de génération demandent confirmation.
+</p>
 </section>
 
   <!-- QUICK STATS -->
