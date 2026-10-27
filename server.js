@@ -8893,9 +8893,17 @@ function jarvisStartVoice() {
 
   const recognition = new SpeechRecognition();
   recognition.lang = "fr-FR";
-  recognition.onstart = () => {
-    document.getElementById("jarvisStatus").textContent = "ÉCOUTE";
-  };
+  
+recognition.onstart = () => {
+  const status = document.getElementById("jarvisStatus");
+
+  if (status) {
+    status.textContent = "ÉCOUTE";
+  }
+
+  jarvisSetVisualState("ÉCOUTE");
+};
+
   recognition.onresult = event => {
   const input = document.getElementById("jarvisInput");
 
@@ -8926,12 +8934,19 @@ function jarvisStartVoice() {
     document.getElementById("jarvisReply").textContent =
       "Je n'ai pas pu comprendre. Tu peux réessayer ou écrire ta commande.";
   };
-  recognition.onend = () => {
-    document.getElementById("jarvisStatus").textContent = "PRÊT";
-  };
+  
+recognition.onend = () => {
+  const status = document.getElementById("jarvisStatus");
+
+  if (status && status.textContent === "ÉCOUTE") {
+    status.textContent = "PRÊT";
+    jarvisSetVisualState("PRÊT");
+  }
+};
+
   recognition.start();
 }
-jarvisSetVisualState("PRÊT");
+
 
 /* JARVIS — commandes et confirmations */
 let jarvisPendingAction = null;
