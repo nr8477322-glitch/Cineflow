@@ -4502,18 +4502,18 @@ function getHomePage() {
 }
 
 :root{
-  --bg:#060712;
-  --panel:#101322;
-  --panel2:#15192b;
-  --border:rgba(255,255,255,.08);
-  --text:#f7f8ff;
-  --muted:#9299b7;
-  --purple:#8b5cf6;
-  --pink:#ec4899;
-  --blue:#38bdf8;
-  --green:#22c55e;
-  --yellow:#facc15;
-  --red:#ef4444;
+  --bg:#080D1A;
+  --panel:#111D31;
+  --panel2:#152640;
+  --border:rgba(53,217,255,.18);
+  --text:#F4FAFF;
+  --muted:#91A5C4;
+  --purple:#35D9FF;
+  --pink:#668CFF;
+  --blue:#35D9FF;
+  --green:#43E6B0;
+  --yellow:#FFD166;
+  --red:#FF647C;
 }
 
 html{
@@ -5458,7 +5458,111 @@ textarea{
 @media(prefers-reduced-motion:reduce) {
   .jarvis-core, .jarvis-ring { animation: none; }
 }
+/* CINEFLOW — thème futuriste unifié avec JARVIS */
 
+body {
+  background:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(53,217,255,.10),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 100% 100%,
+      rgba(102,140,255,.07),
+      transparent 38%
+    ),
+    var(--bg);
+}
+
+.sidebar {
+  background: rgba(8,13,26,.94);
+  border-right-color: rgba(53,217,255,.20);
+}
+
+.logo-icon,
+.auto-icon {
+  background: linear-gradient(135deg,#35D9FF,#668CFF);
+  color: #071020;
+  box-shadow: 0 0 22px rgba(53,217,255,.22);
+}
+
+.card,
+.stat,
+.project,
+.dashboard-card,
+.step {
+  background: linear-gradient(
+    145deg,
+    rgba(17,29,49,.94),
+    rgba(8,15,30,.94)
+  );
+  border-color: rgba(53,217,255,.17);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  transition:
+    border-color .2s ease,
+    box-shadow .2s ease,
+    transform .2s ease;
+}
+
+.card:hover,
+.project:hover,
+.dashboard-card:hover {
+  border-color: rgba(53,217,255,.48);
+  box-shadow: 0 0 22px rgba(53,217,255,.07);
+}
+
+button.primary,
+.actions .primary {
+  color: #06111D;
+  background: linear-gradient(135deg,#35D9FF,#668CFF);
+  border: 1px solid rgba(53,217,255,.65);
+  box-shadow: 0 0 20px rgba(53,217,255,.15);
+}
+
+button.secondary,
+.nav button,
+.chip,
+.icon {
+  border-color: rgba(53,217,255,.20);
+}
+
+button.secondary:hover,
+.nav button:hover,
+.nav button.active,
+.chip.active,
+.icon:hover {
+  color: #35D9FF;
+  background: rgba(53,217,255,.09);
+  border-color: rgba(53,217,255,.45);
+}
+
+input,
+textarea,
+select {
+  accent-color: #35D9FF;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #35D9FF;
+  box-shadow: 0 0 0 3px rgba(53,217,255,.10);
+}
+
+.workflow .step-number,
+.section-head span {
+  color: #35D9FF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .project,
+  .dashboard-card {
+    transition: none;
+  }
+}
 </style>
 
 </head>
