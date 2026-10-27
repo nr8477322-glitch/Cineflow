@@ -8817,6 +8817,7 @@ function jarvisSetVisualState(state) {
   }
 }
 
+
 /* JARVIS — voix française optimisée */
 function jarvisSpeak(text) {
   if (!("speechSynthesis" in window)) return;
@@ -8849,25 +8850,34 @@ function jarvisSpeak(text) {
 
   utterance.onstart = () => {
     const status = document.getElementById("jarvisStatus");
+
     if (status) status.textContent = "PARLE";
-jarvisSetVisualState("PARLE");
+    jarvisSetVisualState("PARLE");
+  };
 
   utterance.onend = () => {
     const status = document.getElementById("jarvisStatus");
+
     if (status && status.textContent === "PARLE") {
       status.textContent = "PRÊT";
     }
+
+    jarvisSetVisualState("PRÊT");
   };
 
   utterance.onerror = () => {
     const status = document.getElementById("jarvisStatus");
+
     if (status && status.textContent === "PARLE") {
       status.textContent = "PRÊT";
     }
+
+    jarvisSetVisualState("PRÊT");
   };
 
   synth.speak(utterance);
 }
+
 
 
 /* Entrée vocale, si le navigateur la prend en charge */
