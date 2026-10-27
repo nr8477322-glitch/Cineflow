@@ -5664,6 +5664,85 @@ button.primary:hover,
   }
 }
 
+/* CINEFLOW — noyau holographique JARVIS */
+
+.jarvis-orb {
+  position: relative;
+  isolation: isolate;
+  border-radius: 50%;
+  border: 1px solid rgba(53, 217, 255, 0.65);
+  box-shadow:
+    0 0 20px rgba(53, 217, 255, 0.2),
+    inset 0 0 20px rgba(53, 217, 255, 0.12);
+  animation: jarvisCorePulse 3s ease-in-out infinite;
+}
+
+.jarvis-orb::before,
+.jarvis-orb::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border: 1px solid rgba(53, 217, 255, 0.45);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.jarvis-orb::before {
+  animation: jarvisRingRotate 8s linear infinite;
+  border-top-color: #35D9FF;
+  border-bottom-color: transparent;
+}
+
+.jarvis-orb::after {
+  inset: -22px;
+  border-color: rgba(102, 140, 255, 0.35);
+  border-left-color: #668CFF;
+  border-right-color: transparent;
+  animation: jarvisRingRotate 12s linear infinite reverse;
+}
+
+@keyframes jarvisRingRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jarvisCorePulse {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(53, 217, 255, 0.18),
+      inset 0 0 12px rgba(53, 217, 255, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(53, 217, 255, 0.38),
+      inset 0 0 22px rgba(53, 217, 255, 0.18);
+  }
+}
+
+/* États visuels de JARVIS */
+.jarvis-orb.is-listening {
+  border-color: #43E6B0;
+  box-shadow: 0 0 28px rgba(67, 230, 176, 0.35);
+}
+
+.jarvis-orb.is-thinking {
+  animation-duration: 1.1s;
+  border-color: #668CFF;
+}
+
+.jarvis-orb.is-speaking {
+  animation-duration: 0.8s;
+  border-color: #35D9FF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-orb,
+  .jarvis-orb::before,
+  .jarvis-orb::after {
+    animation: none !important;
+  }
+}
+
 </style>
 
 </head>
