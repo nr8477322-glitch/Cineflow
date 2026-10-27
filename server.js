@@ -5743,6 +5743,82 @@ button.primary:hover,
   }
 }
 
+/* JARVIS — noyau holographique */
+.jarvis-orb {
+  width: 76px;
+  height: 76px;
+  margin: 12px auto;
+  position: relative;
+  border-radius: 50%;
+  border: 2px solid #35D9FF;
+  background: radial-gradient(
+    circle,
+    rgba(53,217,255,.28),
+    rgba(8,13,26,.85) 68%
+  );
+  box-shadow: 0 0 24px rgba(53,217,255,.35),
+              inset 0 0 18px rgba(53,217,255,.2);
+  animation: jarvisPulse 2s ease-in-out infinite;
+}
+
+.jarvis-orb::before,
+.jarvis-orb::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 1px solid rgba(53,217,255,.65);
+  border-radius: 50%;
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  pointer-events: none;
+}
+
+.jarvis-orb::before {
+  animation: jarvisRotate 4s linear infinite;
+}
+
+.jarvis-orb::after {
+  inset: -15px;
+  border-color: rgba(102,140,255,.6);
+  border-left-color: transparent;
+  border-right-color: transparent;
+  animation: jarvisRotate 7s linear infinite reverse;
+}
+
+.jarvis-orb.is-listening {
+  border-color: #43E6B0;
+  box-shadow: 0 0 28px rgba(67,230,176,.45);
+}
+
+.jarvis-orb.is-thinking {
+  border-color: #668CFF;
+  animation-duration: .8s;
+}
+
+.jarvis-orb.is-speaking {
+  border-color: #35D9FF;
+  animation-duration: .6s;
+}
+
+@keyframes jarvisRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jarvisPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-orb {
+    animation: none;
+  }
+  .jarvis-orb::before,
+  .jarvis-orb::after {
+    animation: none;
+  }
+}
+
 </style>
 
 </head>
@@ -8709,6 +8785,38 @@ function jarvisApplyTheme() {
 
 jarvisApplyTheme();
 
+/* JARVIS — synchronisation des effets visuels */
+function jarvisSetVisualState(state) {
+  const panel = document.querySelector(".jarvis-panel");
+  if (!panel) return;
+
+  let orb = panel.querySelector(".jarvis-orb");
+
+  if (!orb) {
+    orb = document.createElement("div");
+    orb.className = "jarvis-orb";
+    orb.setAttribute("aria-hidden", "true");
+    panel.prepend(orb);
+  }
+
+  orb.classList.remove(
+    "is-listening",
+    "is-thinking",
+    "is-speaking"
+  );
+
+  if (state === "ÉCOUTE") {
+    orb.classList.add("is-listening");
+  } else if (
+    state === "RÉFLEXION" ||
+    state === "EN COURS"
+  ) {
+    orb.classList.add("is-thinking");
+  } else if (state === "PARLE") {
+    orb.classList.add("is-speaking");
+  }
+}
+
 /* JARVIS — voix française optimisée */
 function jarvisSpeak(text) {
   if (!("speechSynthesis" in window)) return;
@@ -8742,7 +8850,7 @@ function jarvisSpeak(text) {
   utterance.onstart = () => {
     const status = document.getElementById("jarvisStatus");
     if (status) status.textContent = "PARLE";
-  };
+jarvisSetVisualState("PARLE");
 
   utterance.onend = () => {
     const status = document.getElementById("jarvisStatus");
@@ -8813,7 +8921,7 @@ function jarvisStartVoice() {
   };
   recognition.start();
 }
-
+jarvisSetVisualState("PRÊT");
 
 /* JARVIS — commandes et confirmations */
 let jarvisPendingAction = null;
