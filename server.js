@@ -8413,19 +8413,6 @@ async function loadEverything(){
 
 loadEverything();
 
-/* JARVIS — couleurs selon l'heure locale */
-function jarvisApplyTheme() {
-  const hour = new Date().getHours();
-  let color = "#35d9ff";
-
-  if (hour >= 6 && hour < 11) color = "#ffbd59";
-  else if (hour >= 11 && hour < 17) color = "#35d9ff";
-  else if (hour >= 17 && hour < 20) color = "#c18aff";
-  else color = "#668cff";
-
-  const panel = document.querySelector(".jarvis-panel");
-  if (panel) panel.style.setProperty("--jarvis-color", color);
-}
 
 /* JARVIS — thème futuriste bleu électrique et cyan */
 function jarvisApplyTheme() {
@@ -8490,52 +8477,7 @@ function jarvisSpeak(text) {
   synth.speak(utterance);
 }
 
-  const synth = window.speechSynthesis;
-  synth.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(String(text));
-  utterance.lang = "fr-FR";
-  utterance.rate = 0.94;
-  utterance.pitch = 1.04;
-  utterance.volume = 1;
-
-  const voices = synth.getVoices();
-
-  const frenchVoices = voices.filter(voice =>
-    /^fr([-_]|$)/i.test(voice.lang)
-  );
-
-  const preferredVoice = frenchVoices.find(voice =>
-    /fr[-_]FR/i.test(voice.lang)
-  ) || frenchVoices.find(voice =>
-    /natural|neural|premium/i.test(voice.name)
-  ) || frenchVoices[0];
-
-  if (preferredVoice) {
-    utterance.voice = preferredVoice;
-  }
-
-  utterance.onstart = () => {
-    const status = document.getElementById("jarvisStatus");
-    if (status) status.textContent = "PARLE";
-  };
-
-  utterance.onend = () => {
-    const status = document.getElementById("jarvisStatus");
-    if (status && status.textContent === "PARLE") {
-      status.textContent = "PRÊT";
-    }
-  };
-
-  utterance.onerror = () => {
-    const status = document.getElementById("jarvisStatus");
-    if (status && status.textContent === "PARLE") {
-      status.textContent = "PRÊT";
-    }
-  };
-
-  synth.speak(utterance);
-}
 /* Entrée vocale, si le navigateur la prend en charge */
 function jarvisStartVoice() {
   const SpeechRecognition =
