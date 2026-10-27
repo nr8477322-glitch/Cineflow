@@ -8930,10 +8930,23 @@ recognition.onstart = () => {
     }
   }
 };
-   recognition.onerror = () => {
-    document.getElementById("jarvisReply").textContent =
+   
+recognition.onerror = () => {
+  const reply = document.getElementById("jarvisReply");
+  const status = document.getElementById("jarvisStatus");
+
+  if (reply) {
+    reply.textContent =
       "Je n'ai pas pu comprendre. Tu peux réessayer ou écrire ta commande.";
-  };
+  }
+
+  if (status) {
+    status.textContent = "PRÊT";
+  }
+
+  jarvisSetVisualState("PRÊT");
+};
+
   
 recognition.onend = () => {
   const status = document.getElementById("jarvisStatus");
@@ -8963,15 +8976,21 @@ function jarvisRespond(message, status = "PRÊT") {
   }
 }
 
+
 async function jarvisSend(event) {
   event.preventDefault();
+
+  jarvisSetVisualState("RÉFLEXION");
 
   const input = document.getElementById("jarvisInput");
   const command = (input?.value || "").trim();
 
-  if (!command) return;
+  if (!command) {
+    jarvisSetVisualState("PRÊT");
+    return;
+  }
 
-  const normalized = command.toLocaleLowerCase("fr-FR");
+const normalized = command.toLocaleLowerCase("fr-FR");
   input.value = "";
 
   if (/^(aide|commandes)$/.test(normalized)) {
