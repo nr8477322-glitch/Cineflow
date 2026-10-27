@@ -8427,18 +8427,115 @@ function jarvisApplyTheme() {
   if (panel) panel.style.setProperty("--jarvis-color", color);
 }
 
-jarvisApplyTheme();
-setInterval(jarvisApplyTheme, 60000);
+/* JARVIS — thème futuriste bleu électrique et cyan */
+function jarvisApplyTheme() {
+  const panel = document.querySelector(".jarvis-panel");
 
-/* Réponse vocale locale, sans appel à une IA payante */
-function jarvisSpeak(text) {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "fr-FR";
-  window.speechSynthesis.speak(utterance);
+  if (panel) {
+    panel.style.setProperty("--jarvis-color", "#35d9ff");
+  }
 }
 
+jarvisApplyTheme();
+
+/* JARVIS — voix française optimisée */
+function jarvisSpeak(text) {
+  if (!("speechSynthesis" in window)) return;
+  if (!text || !String(text).trim()) return;
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(String(text));
+  utterance.lang = "fr-FR";
+  utterance.rate = 0.94;
+  utterance.pitch = 1.04;
+  utterance.volume = 1;
+
+  const voices = synth.getVoices();
+  const frenchVoices = voices.filter(voice =>
+    /^fr([-_]|$)/i.test(voice.lang)
+  );
+
+  const preferredVoice =
+    frenchVoices.find(voice => /fr[-_]FR/i.test(voice.lang)) ||
+    frenchVoices.find(voice =>
+      /natural|neural|premium/i.test(voice.name)
+    ) ||
+    frenchVoices[0];
+
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
+
+  utterance.onstart = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status) status.textContent = "PARLE";
+  };
+
+  utterance.onend = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status && status.textContent === "PARLE") {
+      status.textContent = "PRÊT";
+    }
+  };
+
+  utterance.onerror = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status && status.textContent === "PARLE") {
+      status.textContent = "PRÊT";
+    }
+  };
+
+  synth.speak(utterance);
+}
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(String(text));
+  utterance.lang = "fr-FR";
+  utterance.rate = 0.94;
+  utterance.pitch = 1.04;
+  utterance.volume = 1;
+
+  const voices = synth.getVoices();
+
+  const frenchVoices = voices.filter(voice =>
+    /^fr([-_]|$)/i.test(voice.lang)
+  );
+
+  const preferredVoice = frenchVoices.find(voice =>
+    /fr[-_]FR/i.test(voice.lang)
+  ) || frenchVoices.find(voice =>
+    /natural|neural|premium/i.test(voice.name)
+  ) || frenchVoices[0];
+
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
+
+  utterance.onstart = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status) status.textContent = "PARLE";
+  };
+
+  utterance.onend = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status && status.textContent === "PARLE") {
+      status.textContent = "PRÊT";
+    }
+  };
+
+  utterance.onerror = () => {
+    const status = document.getElementById("jarvisStatus");
+    if (status && status.textContent === "PARLE") {
+      status.textContent = "PRÊT";
+    }
+  };
+
+  synth.speak(utterance);
+}
 /* Entrée vocale, si le navigateur la prend en charge */
 function jarvisStartVoice() {
   const SpeechRecognition =
