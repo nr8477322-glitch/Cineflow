@@ -5563,6 +5563,107 @@ select:focus {
     transition: none;
   }
 }
+
+/* CINEFLOW — effets holographiques complémentaires */
+
+/* 1. Halo lumineux autour des panneaux */
+.card,
+.stat,
+.project,
+.dashboard-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* 2. Reflet holographique au survol */
+.card::after,
+.project::after,
+.dashboard-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(53, 217, 255, 0.08) 45%,
+    transparent 70%
+  );
+  transform: translateX(-110%);
+  transition: transform 0.65s ease;
+}
+
+.card:hover::after,
+.project:hover::after,
+.dashboard-card:hover::after {
+  transform: translateX(110%);
+}
+
+.card:hover,
+.project:hover,
+.dashboard-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(53, 217, 255, 0.55);
+  box-shadow:
+    0 0 18px rgba(53, 217, 255, 0.12),
+    inset 0 0 15px rgba(53, 217, 255, 0.025);
+}
+
+/* 3. Pulsation discrète des boutons principaux */
+button.primary,
+.actions .primary {
+  animation: cineflowButtonGlow 3s ease-in-out infinite;
+  transition: transform 0.2s ease;
+}
+
+button.primary:hover,
+.actions .primary:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes cineflowButtonGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(53, 217, 255, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 23px rgba(53, 217, 255, 0.28);
+  }
+}
+
+/* 4. Mouvement doux lors du chargement des panneaux */
+@keyframes cineflowPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dashboard-card,
+.stat {
+  animation: cineflowPanelEnter 0.45s ease both;
+}
+
+/* 5. Respect des préférences de mouvement */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 </style>
 
 </head>
