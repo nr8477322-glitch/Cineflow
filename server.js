@@ -8935,26 +8935,74 @@ recognition.onend = () => {
 }
 
 
-/* JARVIS — commandes et confirmations */
+/* JARVIS 2.0 — commandes et confirmations sécurisées */
+
 let jarvisPendingAction = null;
+let jarvisLastMessage = "";
+let jarvisActionRunning = false;
+
+const JARVIS_CONFIRMATION_TIMEOUT = 2 * 60 * 1000;
+
+function jarvisNormalize(text) {
+  return String(text || "")
+    .toLocaleLowerCase("fr-FR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function jarvisRespond(message, status = "PRÊT") {
+  jarvisLastMessage = String(message || "");
+
   const reply = document.getElementById("jarvisReply");
   const statusNode = document.getElementById("jarvisStatus");
 
-  if (reply) reply.textContent = message;
+  if (reply) reply.textContent = jarvisLastMessage;
   if (statusNode) statusNode.textContent = status;
 
-  if (typeof jarvisSpeak === "function") {
-    jarvisSpeak(message);
+  if (typeof jarvisSetVisualState === "function") {
+    jarvisSetVisualState(
+      status === "EN COURS" || status === "RÉFLEXION"
+        ? "RÉFLEXION"
+        : "PRÊT"
+    );
+  }
+
+  if (jarvisLastMessage && typeof jarvisSpeak === "function") {
+    jarvisSpeak(jarvisLastMessage);
   }
 }
 
+function jarvisCancelPendingAction(message = "Action annulée.") {
+  jarvisPendingAction = null;
+  jarvisRespond(message);
+}
+
+function jarvisAskConfirmation(action, message) {
+  jarvisPendingAction = {
+    action,
+    expiresAt: Date.now() + JARVIS_CONFIRMATION_TIMEOUT
+  };
+
+  jarvisRespond(
+    message +
+      " Confirme dans les deux minutes, ou dis « annule ».",
+    "CONFIRMATION"
+  );
+}
 
 async function jarvisSend(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
 
-  jarvisSetVisualState("RÉFLEXION");
+  if (jarvisActionRunning) {
+    jarvisRespond(
+      "Une action est déjà en cours. Attends son résultat.",
+      "EN COURS"
+    );
+    return;
+  }
 
   const input = document.getElementById("jarvisInput");
   const command = (input?.value || "").trim();
@@ -8964,134 +9012,286 @@ async function jarvisSend(event) {
     return;
   }
 
-const normalized = command.toLocaleLowerCase("fr-FR");
   input.value = "";
 
-  if (/^(aide|commandes)$/.test(normalized)) {
-    jarvisRespond(
-      "Commandes disponibles : créateur, projets, état du serveur, créer un projet, Auto-Pilote ou annule. Les générations nécessitent une confirmation."
+  const normalized = jarvisNormalize(command);
+
+  jarvisSetVisualState("RÉFLEXION");
+
+  /* 1. Arrêter uniquement la voix */
+  if (
+    /^(arrete la voix|stop voix|tais toi|silence)$/.test(normalized)
+  ) {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    const statusNode = document.getElementById("jarvisStatus");
+    if (statusNode) statusNode.textContent = "PRÊT";
+
+    jarvisSetVisualState("PRÊT");
+
+    const reply = document.getElementById("jarvisReply");
+    if (reply) reply.textContent = "Voix arrêtée.";
+
+    jarvisLastMessage = "Voix arrêtée.";
+    return;
+  }
+
+  /* 2. Répéter la dernière réponse */
+  if (/^(repete|repete la reponse|redis|redis la reponse)$/.test(normalized)) {
+    if (jarvisLastMessage) {
+      jarvisRespond(jarvisLastMessage);
+    } else {
+      jarvisRespond("Je n'ai pas encore de réponse à répéter.");
+    }
+    return;
+  }
+
+  /* 3. Annuler une action en attente */
+  if (/^(annule|annuler|annulation|abandonne)$/.test(normalized)) {
+    jarvisCancelPendingAction(
+      "Action annulée. Aucune nouvelle génération n'a été lancée."
     );
     return;
   }
 
-  if (/\b(créateur|createur|ouvrir le créateur|nouveau projet)\b/.test(normalized)) {
-    if (typeof go === "function") go("creator");
-    jarvisRespond("Le créateur est ouvert. Décris ton idée dans son champ.");
+  /* 4. Vérifier une confirmation en attente */
+  if (jarvisPendingAction) {
+    if (Date.now() > jarvisPendingAction.expiresAt) {
+      jarvisPendingAction = null;
+      jarvisRespond(
+        "La confirmation a expiré. Demande à nouveau l'action si tu souhaites continuer."
+      );
+      return;
+    }
+
+    const pending = jarvisPendingAction;
+
+    const confirmsCreate =
+      /^(confirme|confirmer|confirme la creation|confirme la creation du projet|oui confirme)$/.test(
+        normalized
+      );
+
+    const confirmsAutopilot =
+      /^(confirme auto pilote|confirme le pilote automatique|confirme autopilote)$/.test(
+        normalized
+      );
+
+    if (
+      pending.action === "create" &&
+      confirmsCreate
+    ) {
+      jarvisPendingAction = null;
+      jarvisActionRunning = true;
+
+      try {
+        if (typeof createProject !== "function") {
+          throw new Error("La fonction createProject est introuvable.");
+        }
+
+        jarvisRespond(
+          "Confirmation reçue. Je lance la création du projet.",
+          "EN COURS"
+        );
+
+        await createProject();
+      } catch (error) {
+        jarvisRespond(
+          "Échec de la création : " +
+            (error?.message || "erreur inconnue") +
+            ". Vérifie le projet avant de réessayer.",
+          "AVERTISSEMENT"
+        );
+      } finally {
+        jarvisActionRunning = false;
+      }
+
+      return;
+    }
+
+    if (
+      pending.action === "autopilot" &&
+      confirmsAutopilot
+    ) {
+      jarvisPendingAction = null;
+      jarvisActionRunning = true;
+
+      try {
+        if (typeof autopilot !== "function") {
+          throw new Error("La fonction autopilot est introuvable.");
+        }
+
+        jarvisRespond(
+          "Confirmation reçue. Je lance Auto-Pilote.",
+          "EN COURS"
+        );
+
+        await autopilot();
+      } catch (error) {
+        jarvisRespond(
+          "Échec du lancement d'Auto-Pilote : " +
+            (error?.message || "erreur inconnue") +
+            ".",
+          "AVERTISSEMENT"
+        );
+      } finally {
+        jarvisActionRunning = false;
+      }
+
+      return;
+    }
+
+    jarvisRespond(
+      "Une confirmation est en attente. Dis « confirme la création », « confirme auto-pilote » ou « annule »."
+    );
     return;
   }
 
-  if (/\b(projets|mes projets|ouvrir les projets)\b/.test(normalized)) {
-    if (typeof go === "function") go("projects");
+  /* 5. Aide */
+  if (/^(aide|aide jarvis|commandes|que peux tu faire)$/.test(normalized)) {
+    jarvisRespond(
+      "Commandes : ouvre le créateur, ouvre mes projets, diagnostic du serveur, crée un film suivi de ton idée, Auto-Pilote, répète, arrête la voix ou annule. Les actions de génération demandent une confirmation."
+    );
+    return;
+  }
+
+  /* 6. Navigation vers les sections existantes */
+  if (
+    /\b(ouvre|ouvrir|va dans|affiche|montre)\b/.test(normalized) &&
+    /\b(createur|creation|nouveau projet)\b/.test(normalized)
+  ) {
+    if (typeof go !== "function") {
+      jarvisRespond(
+        "La fonction de navigation est introuvable.",
+        "AVERTISSEMENT"
+      );
+      return;
+    }
+
+    go("creator");
+    jarvisRespond("Le créateur est ouvert.");
+    return;
+  }
+
+  if (
+    /\b(projets|mes projets)\b/.test(normalized) &&
+    /\b(ouvre|ouvrir|affiche|montre|mes projets)\b/.test(normalized)
+  ) {
+    if (typeof go !== "function") {
+      jarvisRespond(
+        "La fonction de navigation est introuvable.",
+        "AVERTISSEMENT"
+      );
+      return;
+    }
+
+    go("projects");
     jarvisRespond("J'ouvre la section des projets.");
     return;
   }
 
-  if (/\b(état|etat|statut|serveur|diagnostic)\b/.test(normalized)) {
+  /* 7. Diagnostic du serveur */
+  if (
+    /\b(diagnostic|etat du serveur|statut du serveur|serveur)\b/.test(
+      normalized
+    )
+  ) {
     try {
       const response = await fetch("/api/health");
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Serveur indisponible.");
+        throw new Error(
+          data.error || "Le serveur a répondu avec une erreur."
+        );
       }
 
-          jarvisRespond(
+      jarvisRespond(
         "Diagnostic Cineflow : " +
-        (data.message || "Serveur joignable.") +
-        " Gemini : " +
-        (data.geminiConnected ? "connecté." : "non connecté.") +
-        " Aucun crédit de génération n'a été utilisé."
+          (data.message || "Serveur joignable.") +
+          " Gemini : " +
+          (data.geminiConnected ? "connecté." : "non connecté.") +
+          " Cette vérification ne lance aucune génération."
       );
     } catch (error) {
       jarvisRespond(
-        "Vérification impossible : " + error.message,
+        "Diagnostic impossible : " +
+          (error?.message || "erreur réseau") +
+          ".",
         "AVERTISSEMENT"
       );
     }
+
     return;
   }
 
-  if (/\b(créer|creer|générer|generer)\b/.test(normalized) &&
-      /\b(projet|film|vidéo|video)\b/.test(normalized)) {
-    const idea = command
-      .replace(/^(jarvis[,:]?\s*)?/i, "")
-      .replace(/\b(créer|creer|générer|generer)\b/i, "")
-      .replace(/^\s*(un|une|le|la)?\s*(projet|film|vidéo|video)?\s*(sur|de|:)?\s*/i, "")
-      .trim();
-
+  /* 8. Demande de création */
+  if (
+    /\b(creer|genere|generer|lance)\b/.test(normalized) &&
+    /\b(projet|film|video)\b/.test(normalized)
+  ) {
     const prompt = document.getElementById("prompt");
 
-    if (idea && prompt) prompt.value = idea;
-
-    if (!prompt || !prompt.value.trim()) {
-      if (typeof go === "function") go("creator");
-      jarvisRespond("Décris ton idée dans le créateur, puis demande de créer le projet.");
+    if (!prompt) {
+      jarvisRespond(
+        "Je ne trouve pas le champ d'idée du créateur. Aucun projet n'a été lancé.",
+        "AVERTISSEMENT"
+      );
       return;
     }
 
-    jarvisPendingAction = "create";
-    jarvisRespond(
-      "La création peut consommer des crédits IA. Dis « confirme la création » pour continuer ou « annule » pour arrêter.",
-      "CONFIRMATION"
+    let idea = command
+      .replace(/^\s*jarvis[,:]?\s*/i, "")
+      .replace(
+        /\b(créer|creer|générer|generer|lance)\b/i,
+        ""
+      )
+      .replace(
+        /^\s*(un|une|le|la|mon|ma)?\s*(projet|film|vidéo|video)?\s*/i,
+        ""
+      )
+      .replace(/^\s*(sur|de|à propos de|:)\s*/i, "")
+      .trim();
+
+    if (idea) {
+      prompt.value = idea;
+      prompt.dispatchEvent(new Event("input", { bubbles: true }));
+      prompt.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    if (!prompt.value.trim()) {
+      if (typeof go === "function") go("creator");
+
+      jarvisRespond(
+        "Ouvre le créateur et écris d'abord ton idée de film."
+      );
+      return;
+    }
+
+    jarvisAskConfirmation(
+      "create",
+      "Prêt à créer le projet avec cette idée : " +
+        prompt.value.trim() +
+        ". Cette opération peut consommer des crédits IA."
+    );
+
+    return;
+  }
+
+  /* 9. Demande d'Auto-Pilote */
+  if (/\b(auto pilote|autopilote|pilote automatique)\b/.test(normalized)) {
+    jarvisAskConfirmation(
+      "autopilot",
+      "Auto-Pilote peut lancer plusieurs opérations et consommer des crédits IA."
     );
     return;
   }
 
-  if (/\b(auto[- ]?pilote|pilote automatique)\b/.test(normalized)) {
-    jarvisPendingAction = "autopilot";
-    jarvisRespond(
-      "Auto-Pilote peut consommer des crédits IA. Dis « confirme auto-pilote » pour continuer ou « annule » pour arrêter.",
-      "CONFIRMATION"
-    );
-    return;
-  }
-
-  if (/\b(annule|annuler|stop)\b/.test(normalized)) {
-    jarvisPendingAction = null;
-    jarvisRespond("Action annulée. Aucune génération n'a été lancée.");
-    return;
-  }
-
-  if (/\b(confirme la création|confirme la creation)\b/.test(normalized) &&
-      jarvisPendingAction === "create") {
-    jarvisPendingAction = null;
-    jarvisRespond("Confirmation reçue. Lancement de la création.", "EN COURS");
-
-    if (typeof createProject === "function") {
-      await createProject();
-    } else {
-      jarvisRespond("La fonction de création est introuvable.", "AVERTISSEMENT");
-    }
-    return;
-  }
-
-  if (/\b(confirme auto[- ]?pilote|confirme le pilote automatique)\b/.test(normalized) &&
-      jarvisPendingAction === "autopilot") {
-    jarvisPendingAction = null;
-    jarvisRespond("Confirmation reçue. Lancement d'Auto-Pilote.", "EN COURS");
-
-    if (typeof autopilot === "function") {
-      await autopilot();
-    } else {
-      jarvisRespond("La fonction Auto-Pilote est introuvable.", "AVERTISSEMENT");
-    }
-    return;
-  }
-
-const suggestions = [
-  "Je peux t'aider à préparer une histoire de film.",
-  "Je peux t'aider à organiser les scènes de ton projet.",
-  "Je peux vérifier l'état du serveur Cineflow.",
-  "Je peux ouvrir le créateur ou afficher tes projets."
-];
-
-const suggestion =
-  suggestions[Math.floor(Math.random() * suggestions.length)];
-
-jarvisRespond(
-  "Je n'ai pas reconnu cette commande. " + suggestion +
-  " Dis « aide » pour afficher les commandes disponibles."
-);
+  /* 10. Commande inconnue */
+  jarvisRespond(
+    "Je n'ai pas reconnu cette commande. Dis « aide » pour voir les commandes disponibles."
+  );
 }
 
 
