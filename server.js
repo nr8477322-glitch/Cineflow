@@ -9243,9 +9243,10 @@ async function jarvisSend(event) {
     let idea = command
       .replace(/^\s*jarvis[,:]?\s*/i, "")
       .replace(
-        /\b(crée|créer|cree|creer|génère|générer|genere|generer|lance)\b/i
-        ""
-      )
+  /\b(crée|créer|cree|creer|génère|générer|genere|generer|lance)\b/i,
+  ""
+)
+
       .replace(
         /^\s*(un|une|le|la|mon|ma)?\s*(projet|film|vidéo|video)?\s*/i,
         ""
