@@ -9228,8 +9228,7 @@ async function jarvisSend(event) {
 
   /* 8. Demande de création */
   if (
-    /\b(creer|genere|generer|lance)\b/.test(normalized) &&
-    /\b(projet|film|video)\b/.test(normalized)
+    /\b(cree|creer|genere|generer|lance)\b/.test(normalized)
   ) {
     const prompt = document.getElementById("prompt");
 
@@ -9244,7 +9243,7 @@ async function jarvisSend(event) {
     let idea = command
       .replace(/^\s*jarvis[,:]?\s*/i, "")
       .replace(
-        /\b(créer|creer|générer|generer|lance)\b/i,
+        /\b(crée|créer|cree|creer|génère|générer|genere|generer|lance)\b/i
         ""
       )
       .replace(
