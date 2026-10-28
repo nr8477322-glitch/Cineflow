@@ -9227,8 +9227,13 @@ async function jarvisSend(event) {
   }
 
   /* 8. Demande de création */
-  if (
-    /\b(cree|creer|genere|generer|lance)\b/.test(normalized)
+    if (
+    /\b(cree|creer|genere|generer)\b/.test(normalized) ||
+    (
+      /\blance\b/.test(normalized) &&
+      /\b(film|video|projet|creation)\b/.test(normalized) &&
+      !/\b(auto pilote|autopilote|pilote automatique)\b/.test(normalized)
+    )
   ) {
     const prompt = document.getElementById("prompt");
 
@@ -9240,7 +9245,7 @@ async function jarvisSend(event) {
       return;
     }
 
-      let idea = command
+          let idea = command
       .replace(/^\s*jarvis[,:]?\s*/i, "")
       .replace(
         /\b(crée|créer|cree|creer|génère|générer|genere|generer|lance)\b/i,
