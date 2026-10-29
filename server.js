@@ -2742,6 +2742,165 @@ if (botsRouter?.updateRecoveryTask) {
     }
   }
 
+  // 2. SECOURS : AIVEED
+  let aiveedError = "AIVeed non configuré.";
+
+  if (process.env.AIVEED_API_KEY && Number(scene.number) === 1) {
+    try {
+      console.log(`🎬 Scène ${scene.number} : tentative AIVeed.`);
+
+      const headers = {
+        "X-API-Key": process.env.AIVEED_API_KEY
+      };
+
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([
+          Buffer.from(imageData.data, "base64")
+        ], {
+          type: imageData.mimeType || "image/png"
+        }),
+        "cineflow-source.png"
+      );
+      form.append("kind", "image");
+
+      const uploadResponse = await fetch(
+        "https://api.aiveed.io/v1/uploads",
+        {
+          method: "POST",
+          headers,
+          body: form
+        }
+      );
+
+      const upload = await uploadResponse.json();
+
+      if (!uploadResponse.ok || !upload.url) {
+        throw new Error(
+          upload.message || `Erreur upload : ${uploadResponse.status}`
+        );
+      }
+
+      const submitResponse = await fetch(
+        "https://api.aiveed.io/v1/generate/video",
+        {
+          method: "POST",
+          headers: {
+            ...headers,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `cineflow-${videoId}`
+          },
+          body: JSON.stringify({
+            model: "seedance-v1-pro",
+            prompt:
+              scene.videoPrompt ||
+              scene.description ||
+              "Mouvement cinématographique naturel, caméra fluide.",
+            resolution: "480p",
+            duration: "5",
+            aspect_ratio: "16:9",
+            first_frame_url: upload.url
+          })
+        }
+      );
+
+      const submitted = await submitResponse.json();
+
+      if (!submitResponse.ok || !submitted.id) {
+        throw new Error(
+          submitted.message || `Erreur lancement : ${submitResponse.status}`
+        );
+      }
+
+      let completed = null;
+
+      for (let i = 0; i < 120; i++) {
+        const response = await fetch(
+          `https://api.aiveed.io/v1/jobs/${encodeURIComponent(submitted.id)}`,
+          { headers }
+        );
+
+        const job = await response.json();
+
+        if (!response.ok) {
+          throw new Error(job.message || "Erreur de suivi AIVeed.");
+        }
+
+        if (job.status === "completed" && job.result_url) {
+          completed = job;
+          break;
+        }
+
+        if (job.status === "failed" || job.status === "cancelled") {
+          throw new Error(
+            job.error_message || `Job ${job.status}`
+          );
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+
+      if (!completed) {
+        throw new Error(
+          "Délai dépassé : vérifier le job AIVeed avant toute relance."
+        );
+      }
+
+      const resultResponse = await fetch(completed.result_url);
+
+      if (!resultResponse.ok) {
+        throw new Error("Téléchargement vidéo AIVeed impossible.");
+      }
+
+      const outputDir = path.join(
+        os.tmpdir(),
+        "cineflow-aiveed",
+        videoId
+      );
+
+      fs.mkdirSync(outputDir, { recursive: true });
+
+      const videoPath = path.join(outputDir, "scene.mp4");
+
+      fs.writeFileSync(
+        videoPath,
+        Buffer.from(await resultResponse.arrayBuffer())
+      );
+
+      video.status = "ready";
+      video.provider = "aiveed";
+      video.filePath = videoPath;
+
+      projectVideo.status = "ready";
+      projectVideo.provider = "aiveed";
+      projectVideo.filePath = videoPath;
+
+      generatedVideos.set(videoId, video);
+
+      await saveProjectToDatabase(project);
+
+      if (botsRouter?.updateRecoveryTask) {
+        await botsRouter.updateRecoveryTask({
+          projectId: project.id,
+          sceneNumber: Number(scene.number),
+          status: "completed",
+          videoId
+        });
+      }
+
+      console.log(`✅ Scène ${scene.number} terminée avec AIVeed.`);
+      return;
+
+    } catch (error) {
+      aiveedError = error.message || "Erreur AIVeed inconnue.";
+
+      console.error("⚠️ AIVeed :", aiveedError);
+    }
+  }
+
+  // 3. SECOURS FINAL : VEO
+
   // 2. SECOURS : VEO
   try {
     if (!ai) {
@@ -2789,8 +2948,9 @@ if (botsRouter?.updateRecoveryTask) {
   } catch (error) {
     video.status = "error";
     video.error =
-      "Magic Hour : " + magicHourError +
-      " | Veo : " + (error.message || "échec inconnu");
+  "Magic Hour : " + magicHourError +
+  " | AIVeed : " + aiveedError +
+  " | Veo : " + (error.message || "échec inconnu");
 
     projectVideo.status = "error";
     projectVideo.error = video.error;
