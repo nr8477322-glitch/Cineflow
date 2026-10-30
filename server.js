@@ -9241,6 +9241,17 @@ async function jarvisSend(event) {
       pending.action === "create" &&
       confirmsCreate
     ) {
+    const promptField = document.getElementById("prompt");
+
+if (!promptField || !promptField.value.trim()) {
+  jarvisPendingAction = null;
+  jarvisRespond(
+    "Écris d'abord ton idée de vidéo dans le créateur, puis demande Auto-Pilote.",
+    
+  );
+  go("creator");
+  return;
+}
       jarvisPendingAction = null;
       jarvisActionRunning = true;
 
@@ -9270,8 +9281,8 @@ async function jarvisSend(event) {
     }
 
     if (
-  pending.action === "create" &&
-  confirmsCreate
+  pending.action === "autopilot" &&
+  confirmsAutopilot
 ) {
       const promptField = document.getElementById("prompt");
 
