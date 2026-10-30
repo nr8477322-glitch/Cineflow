@@ -7078,11 +7078,10 @@ async function createProject(){
       "✨ Projet Cineflow créé !"
     );
 
-  }catch(error){
+    }catch(error){
 
-    alert(
-      error.message
-    );
+    alert(error.message);
+    throw error;
 
   }
 
@@ -7243,13 +7242,12 @@ async function autopilot(){
       "⚡ Auto-Pilote Cineflow est lancé."
     );
 
-  }catch(error){
+   }catch(error){
 
-    alert(
-      error.message
-    );
+    alert(error.message);
+    throw error;
 
-  }
+  } 
 
 }
 
@@ -9272,9 +9270,20 @@ async function jarvisSend(event) {
     }
 
     if (
-      pending.action === "autopilot" &&
-      confirmsAutopilot
-    ) {
+  pending.action === "create" &&
+  confirmsCreate
+) {
+      const promptField = document.getElementById("prompt");
+
+      if (!promptField || !promptField.value.trim()) {
+        jarvisPendingAction = null;
+        jarvisRespond(
+          "Écris d'abord ton idée de vidéo dans le créateur, puis demande Auto-Pilote.",
+          "AVERTISSEMENT"
+        );
+        go("creator");
+        return;
+      }
       jarvisPendingAction = null;
       jarvisActionRunning = true;
 
