@@ -9509,7 +9509,7 @@ async function jarvisSend(event) {
   jarvisRespond(
     "Je n'ai pas reconnu cette commande. Dis « aide » pour voir les commandes disponibles."
   );
-
+}
 
 
 </script>
