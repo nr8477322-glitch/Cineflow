@@ -9462,11 +9462,10 @@ async function jarvisSend(event) {
           fetch("/api/test-gemini")
         ]);
 
-      if (!healthResponse.ok || !hostingResponse.ok || !geminiResponse.ok) {
-      const hostingData = await hostingResponse.json();
+            const hostingData = await hostingResponse.json();
       const gemini = await geminiResponse.json();
 
-      if (!healthResponse.ok || !hostingResponse.ok) {
+      if (!healthResponse.ok || !hostingResponse.ok || !geminiResponse.ok) {
         throw new Error("Une vérification du serveur a échoué.");
       }
 
