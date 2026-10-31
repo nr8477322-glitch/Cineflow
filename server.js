@@ -1666,7 +1666,7 @@ app.get("/api/magic-hour/preview/:id", (req, res) => {
 // JARVIS — synthèse vocale ElevenLabs
 const jarvisTtsRequests = new Map();
 
-app.post("/api/jarvis/tts", async (req, res) => {
+app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID;
@@ -9071,8 +9071,9 @@ async function jarvisSpeak(text) {
     const response = await fetch("/api/jarvis/tts", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
-      },
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${token}`
+},
       body: JSON.stringify({
         text: message,
         language
