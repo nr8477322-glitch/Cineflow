@@ -9332,7 +9332,7 @@ async function jarvisSend(event) {
   /* 5. Aide */
   if (/^(aide|aide jarvis|commandes|que peux tu faire)$/.test(normalized)) {
     jarvisRespond(
-      "Commandes : ouvre le créateur, ouvre mes projets, diagnostic du serveur, crée un film suivi de ton idée, Auto-Pilote, répète, arrête la voix ou annule. Les actions de génération demandent une confirmation."
+      "Commandes disponibles : ouvre le créateur, ouvre mes projets, ouvre le tableau de bord, diagnostic complet, vérifie Gemini, répète, arrête la voix ou annule. Les opérations de création demandent une confirmation."
     );
     return;
   }
@@ -9473,11 +9473,71 @@ async function jarvisSend(event) {
     return;
   }
 
-  /* 10. Commande inconnue */
+  
+  /* 10. Commandes de consultation */
+  if (/^(ouvre|affiche|montre|va dans) le tableau de bord$/.test(normalized)) {
+    go("dashboard");
+    jarvisRespond("J'ouvre le tableau de bord.");
+    return;
+  }
+
+  if (/^(mes projets|liste mes projets|affiche mes projets)$/.test(normalized)) {
+    go("projects");
+    jarvisRespond("J'ouvre tes projets.");
+    return;
+  }
+
+  if (/^(diagnostic|diagnostic complet|verifie le serveur)$/.test(normalized)) {
+    try {
+      const [healthResponse, hostingResponse] = await Promise.all([
+        fetch("/api/health"),
+        fetch("/api/hosting")
+      ]);
+
+      const health = await healthResponse.json();
+      const hosting = await hostingResponse.json();
+
+      if (!healthResponse.ok || !hostingResponse.ok) {
+        throw new Error("Une vérification du serveur a échoué.");
+      }
+
+      jarvisRespond(
+        "Diagnostic terminé. Serveur : " +
+        (hosting.hosting?.status || "inconnu") +
+        ". Gemini : " +
+        (health.geminiConnected ? "connecté" : "non connecté") +
+        "."
+      );
+    } catch (error) {
+      jarvisRespond(
+        "Diagnostic impossible : " + error.message,
+        "AVERTISSEMENT"
+      );
+    }
+    return;
+  }
+
+  if (/^(verifie gemini|teste gemini|etat gemini)$/.test(normalized)) {
+    try {
+      const response = await fetch("/api/test-gemini");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Gemini ne répond pas.");
+      }
+
+      jarvisRespond("Gemini fonctionne. " + data.message);
+    } catch (error) {
+      jarvisRespond("Test Gemini : " + error.message, "AVERTISSEMENT");
+    }
+    return;
+  }
+
+  /* 11. Commande inconnue */
   jarvisRespond(
     "Je n'ai pas reconnu cette commande. Dis « aide » pour voir les commandes disponibles."
   );
-}
+
 
 
 </script>
