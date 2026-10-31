@@ -1663,7 +1663,95 @@ app.get("/api/magic-hour/preview/:id", (req, res) => {
 
   return res.sendFile(video.filePath);
 });
+// JARVIS — synthèse vocale ElevenLabs
+const jarvisTtsRequests = new Map();
 
+app.post("/api/jarvis/tts", async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+
+    if (!apiKey || !voiceId) {
+      return res.status(503).json({
+        success: false,
+        error: "Configuration ElevenLabs incomplète."
+      });
+    }
+
+    const text = String(req.body.text || "").trim();
+    const language = req.body.language === "en" ? "en" : "fr";
+
+    if (!text || text.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: "Texte vide ou trop long (maximum 1000 caractères)."
+      });
+    }
+
+    const now = Date.now();
+    const ip = req.ip;
+    const previous = jarvisTtsRequests.get(ip) || [];
+
+    const recent = previous.filter(time => now - time < 60000);
+
+    if (recent.length >= 15) {
+      return res.status(429).json({
+        success: false,
+        error: "Trop de demandes vocales. Réessaie dans une minute."
+      });
+    }
+
+    recent.push(now);
+    jarvisTtsRequests.set(ip, recent);
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          "Accept": "audio/mpeg"
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          language_code: language,
+          voice_settings: {
+            stability: 0.65,
+            similarity_boost: 0.8,
+            style: 0.35,
+            use_speaker_boost: true
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("ElevenLabs:", response.status, detail);
+
+      return res.status(502).json({
+        success: false,
+        error: "ElevenLabs n'a pas pu générer la voix."
+      });
+    }
+
+    const audio = Buffer.from(await response.arrayBuffer());
+
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Cache-Control", "no-store");
+    return res.send(audio);
+
+  } catch (error) {
+    console.error("Erreur JARVIS ElevenLabs:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Erreur pendant la génération vocale."
+    });
+  }
+});
 app.post("/api/tts/test-scene", async (req, res) => {
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -8950,66 +9038,106 @@ function jarvisSetVisualState(state) {
 }
 
 
-/* JARVIS — voix française optimisée */
-function jarvisSpeak(text) {
-  if (!("speechSynthesis" in window)) return;
+/* JARVIS — ElevenLabs avec secours navigateur */
+
+let jarvisAudio = null;
+let jarvisAudioUrl = null;
+
+async function jarvisSpeak(text) {
   if (!text || !String(text).trim()) return;
 
-  const synth = window.speechSynthesis;
-  synth.cancel();
+  const message = String(text).trim();
+
+  if (jarvisAudio) {
+    jarvisAudio.pause();
+    jarvisAudio = null;
+  }
+
+  if (jarvisAudioUrl) {
+    URL.revokeObjectURL(jarvisAudioUrl);
+    jarvisAudioUrl = null;
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  const language =
+    /\b(the|hello|thank you|please|your|welcome)\b/i.test(message)
+      ? "en"
+      : "fr";
+
+  try {
+    const response = await fetch("/api/jarvis/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        text: message,
+        language
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("ElevenLabs indisponible");
+    }
+
+    const audioBlob = await response.blob();
+    jarvisAudioUrl = URL.createObjectURL(audioBlob);
+    jarvisAudio = new Audio(jarvisAudioUrl);
+
+    jarvisAudio.onplay = () => {
+      const status = document.getElementById("jarvisStatus");
+      if (status) status.textContent = "PARLE";
+      jarvisSetVisualState("PARLE");
+    };
+
+    jarvisAudio.onended = () => {
+      const status = document.getElementById("jarvisStatus");
+      if (status) status.textContent = "PRÊT";
+      jarvisSetVisualState("PRÊT");
+      URL.revokeObjectURL(jarvisAudioUrl);
+      jarvisAudioUrl = null;
+      jarvisAudio = null;
+    };
+
+    jarvisAudio.onerror = () => {
+      jarvisAudio = null;
+      jarvisSpeakFallback(message);
+    };
+
+    await jarvisAudio.play();
+
+  } catch (error) {
+    console.warn("Voix ElevenLabs indisponible :", error.message);
+    jarvisSpeakFallback(message);
+  }
+}
+
+function jarvisSpeakFallback(text) {
+  if (!("speechSynthesis" in window)) return;
 
   const utterance = new SpeechSynthesisUtterance(String(text));
   utterance.lang = "fr-FR";
   utterance.rate = 0.94;
-  utterance.pitch = 1.04;
+  utterance.pitch = 0.9;
   utterance.volume = 1;
-
-  const voices = synth.getVoices();
-  const frenchVoices = voices.filter(voice =>
-    /^fr([-_]|$)/i.test(voice.lang)
-  );
-
-  const preferredVoice =
-    frenchVoices.find(voice => /fr[-_]FR/i.test(voice.lang)) ||
-    frenchVoices.find(voice =>
-      /natural|neural|premium/i.test(voice.name)
-    ) ||
-    frenchVoices[0];
-
-  if (preferredVoice) {
-    utterance.voice = preferredVoice;
-  }
 
   utterance.onstart = () => {
     const status = document.getElementById("jarvisStatus");
-
     if (status) status.textContent = "PARLE";
     jarvisSetVisualState("PARLE");
   };
 
   utterance.onend = () => {
     const status = document.getElementById("jarvisStatus");
-
-    if (status && status.textContent === "PARLE") {
-      status.textContent = "PRÊT";
-    }
-
+    if (status) status.textContent = "PRÊT";
     jarvisSetVisualState("PRÊT");
   };
 
-  utterance.onerror = () => {
-    const status = document.getElementById("jarvisStatus");
-
-    if (status && status.textContent === "PARLE") {
-      status.textContent = "PRÊT";
-    }
-
-    jarvisSetVisualState("PRÊT");
-  };
-
-  synth.speak(utterance);
+  window.speechSynthesis.speak(utterance);
 }
-
 
 
 /* Entrée vocale, si le navigateur la prend en charge */
