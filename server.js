@@ -9372,41 +9372,7 @@ async function jarvisSend(event) {
     return;
   }
 
-  /* 7. Diagnostic du serveur */
-  if (
-    /\b(diagnostic|etat du serveur|statut du serveur|serveur)\b/.test(
-      normalized
-    )
-  ) {
-    try {
-      const response = await fetch("/api/health");
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error || "Le serveur a répondu avec une erreur."
-        );
-      }
-
-      jarvisRespond(
-        "Diagnostic Cineflow : " +
-          (data.message || "Serveur joignable.") +
-          " Gemini : " +
-          (data.geminiConnected ? "connecté." : "non connecté.") +
-          " Cette vérification ne lance aucune génération."
-      );
-    } catch (error) {
-      jarvisRespond(
-        "Diagnostic impossible : " +
-          (error?.message || "erreur réseau") +
-          ".",
-        "AVERTISSEMENT"
-      );
-    }
-
-    return;
-  }
-
+  
   /* 8. Demande de création */
     if (
     /\b(cree|creer|genere|generer)\b/.test(normalized) ||
@@ -9487,30 +9453,37 @@ async function jarvisSend(event) {
     return;
   }
 
-  if (/^(diagnostic|diagnostic complet|verifie le serveur)$/.test(normalized)) {
+    if (/^(diagnostic|diagnostic complet|verifie le serveur)$/.test(normalized)) {
     try {
-      const [healthResponse, hostingResponse] = await Promise.all([
-        fetch("/api/health"),
-        fetch("/api/hosting")
-      ]);
+      const [healthResponse, hostingResponse, geminiResponse] =
+        await Promise.all([
+          fetch("/api/health"),
+          fetch("/api/hosting"),
+          fetch("/api/test-gemini")
+        ]);
 
       const health = await healthResponse.json();
-      const hosting = await hostingResponse.json();
+      const hostingData = await hostingResponse.json();
+      const gemini = await geminiResponse.json();
 
       if (!healthResponse.ok || !hostingResponse.ok) {
         throw new Error("Une vérification du serveur a échoué.");
       }
 
+      const hosting = hostingData.hosting || {};
+
       jarvisRespond(
         "Diagnostic terminé. Serveur : " +
-        (hosting.hosting?.status || "inconnu") +
+        (hosting.status === "online" ? "en ligne" : "à vérifier") +
+        ". Hébergement : " + (hosting.provider || "inconnu") +
         ". Gemini : " +
-        (health.geminiConnected ? "connecté" : "non connecté") +
+        (gemini.success ? "fonctionnel" : "à vérifier") +
         "."
       );
     } catch (error) {
       jarvisRespond(
-        "Diagnostic impossible : " + error.message,
+        "Diagnostic impossible : " +
+        (error?.message || "erreur inconnue"),
         "AVERTISSEMENT"
       );
     }
