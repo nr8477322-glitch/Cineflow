@@ -9462,7 +9462,7 @@ async function jarvisSend(event) {
           fetch("/api/test-gemini")
         ]);
 
-      const health = await healthResponse.json();
+      if (!healthResponse.ok || !hostingResponse.ok || !geminiResponse.ok) {
       const hostingData = await hostingResponse.json();
       const gemini = await geminiResponse.json();
 
