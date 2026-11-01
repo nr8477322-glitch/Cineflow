@@ -1,26 +1,32 @@
 
+import json
 import os
 import urllib.request
 import urllib.error
-import json
 
 
 class MotionEngineError(Exception):
     pass
 
 
-def generate_video(image_url: str, prompt: str, duration_seconds: int, aspect_ratio: str):
-    """
-    Adaptateur Cineflow Motion.
-    Transmet une demande à un moteur vidéo externe configuré.
-    """
+def generate_video(
+    image_url: str,
+    prompt: str,
+    duration_seconds: int,
+    aspect_ratio: str
+):
+    """Transmet une demande au moteur vidéo externe."""
 
     engine_url = os.getenv("MOTION_ENGINE_URL")
 
     if not engine_url:
         raise MotionEngineError(
-            "Aucun moteur vidéo n'est configuré. "
-            "Définir MOTION_ENGINE_URL avant la génération."
+            "MOTION_ENGINE_URL n'est pas configurée."
+        )
+
+    if not engine_url.startswith(("https://", "http://")):
+        raise MotionEngineError(
+            "MOTION_ENGINE_URL doit être une URL HTTP ou HTTPS."
         )
 
     payload = {
@@ -41,10 +47,34 @@ def generate_video(image_url: str, prompt: str, duration_seconds: int, aspect_ra
 
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            result = json.loads(response.read().decode("utf-8"))
+            result = json.loads(
+                response.read().decode("utf-8")
+            )
+
+            if not isinstance(result, dict):
+                raise MotionEngineError(
+                    "Réponse du moteur invalide."
+                )
+
+            if not result.get("job_id") and not result.get("video_url"):
+                raise MotionEngineError(
+                    "Le moteur n'a retourné aucun identifiant "
+                    "de tâche ni URL vidéo."
+                )
+
             return result
 
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except urllib.error.HTTPError as exc:
         raise MotionEngineError(
-            f"Échec de communication avec le moteur vidéo : {exc}"
+            f"Erreur HTTP {exc.code} du moteur vidéo."
+        ) from exc
+
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise MotionEngineError(
+            f"Moteur vidéo inaccessible : {exc}"
+        ) from exc
+
+    except json.JSONDecodeError as exc:
+        raise MotionEngineError(
+            "Le moteur n'a pas retourné un JSON valide."
         ) from exc
