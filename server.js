@@ -9058,7 +9058,7 @@ async function jarvisLogin() {
     const data = await response.json();
 
     if (!response.ok || !data.token) {
-      alert(data.message || "Connexion impossible.");
+      alert(data.error || "Connexion impossible.");
       return;
     }
 
