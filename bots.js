@@ -679,125 +679,145 @@ module.exports = function createBotsRouter(options) {
   });
 
   async function processRecoveryQueue() {
-    if (recoveryWorkerRunning) return;
+  if (recoveryWorkerRunning) return;
 
-    recoveryWorkerRunning = true;
+  recoveryWorkerRunning = true;
 
-    try {
-      const persistent = await queueTableReady;
+  try {
+    const persistent = await queueTableReady;
 
-      if (persistent) {
-        const result = await pool.query(
-          `SELECT data
-           FROM cineflow_recovery_queue
-           WHERE status IN ('queued', 'processing')
-           ORDER BY updated_at ASC`
-        );
-
-        for (const row of result.rows) {
-          if (row.data?.id) {
-            recoveryQueue.set(row.data.id, row.data);
-          }
-        }
-
-        await recoverStaleTasks();
-      }
-
-      if (typeof retryScene !== "function") {
-        console.error(
-          "Bot de reprise : retryScene n'est pas connecté."
-        );
-        return;
-      }
-
-      const pendingTasks = Array.from(recoveryQueue.values()).filter(
-        task => task && task.status === "queued"
+    if (persistent) {
+      const result = await pool.query(
+        `SELECT data
+         FROM cineflow_recovery_queue
+         WHERE status IN ('queued', 'processing')
+         ORDER BY updated_at ASC`
       );
 
-      for (const task of pendingTasks) {
-        const id = task.id;
-
-        if (activeRetries.has(id)) continue;
-        if (recoveryQueue.get(id)?.status !== "queued") continue;
-
-        if (Number(task.attempts || 0) >= MAX_AUTO_RECOVERY_ATTEMPTS) {
-          task.status = "failed";
-          task.lastError =
-            task.lastError || "Nombre maximal de tentatives atteint.";
-
-          await persistTask(task);
-          continue;
+      for (const row of result.rows) {
+        if (row.data?.id) {
+          recoveryQueue.set(row.data.id, row.data);
         }
+      }
 
-        activeRetries.add(id);
+      await recoverStaleTasks();
+    }
 
-        task.status = "processing";
-        task.attempts = Number(task.attempts || 0) + 1;
+    if (typeof retryScene !== "function") {
+      console.error(
+        "Bot de reprise : retryScene n'est pas connecté."
+      );
+      return;
+    }
+
+    const pendingTasks = Array.from(recoveryQueue.values())
+      .filter(task => task && task.status === "queued")
+      .sort((a, b) =>
+        Date.parse(a.createdAt || 0) -
+        Date.parse(b.createdAt || 0)
+      );
+
+    for (const task of pendingTasks) {
+      const id = task.id;
+
+      if (activeRetries.has(id)) continue;
+      if (recoveryQueue.get(id)?.status !== "queued") continue;
+
+      // Respecter le délai avant la prochaine tentative.
+      const nextRetryAt = Date.parse(task.nextRetryAt || "");
+
+      if (Number.isFinite(nextRetryAt) && Date.now() < nextRetryAt) {
+        continue;
+      }
+
+      if (Number(task.attempts || 0) >= MAX_AUTO_RECOVERY_ATTEMPTS) {
+        task.status = "failed";
+        task.lastError =
+          task.lastError || "Nombre maximal de tentatives atteint.";
 
         await persistTask(task);
+        continue;
+      }
 
-        try {
-          const result = await retryScene(
-            task.projectId,
-            task.sceneNumber,
-            task
-          );
+      activeRetries.add(id);
 
-        
-if (!result || result.success !== true) {
-  const errorMessage =
-    result?.error || "La relance automatique a échoué.";
+      task.status = "processing";
+      task.attempts = Number(task.attempts || 0) + 1;
+      task.lastRetryRequestedAt = timestamp();
 
-  
-  const permanentError =
-    result?.permanent === true ||
-    errorMessage.includes(
-      "Projet introuvable dans la mémoire et dans Neon"
-    ) ||
-    errorMessage.includes(
-      "image introuvable en mémoire et dans Neon"
-    );
+      await persistTask(task);
 
+      try {
+        const result = await retryScene(
+          task.projectId,
+          task.sceneNumber,
+          task
+        );
 
-  task.status =
-    permanentError ||
-    task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
-      ? "failed"
-      : "queued";
+        if (!result || result.success !== true) {
+          const errorMessage =
+            result?.error || "La relance automatique a échoué.";
 
-  task.lastError = errorMessage;
+          const permanentError =
+            result?.permanent === true;
 
-  await persistTask(task);
-} else {
-  task.videoId = result.videoId || task.videoId || null;
-  task.status = "processing";
-  task.lastError = null;
-  await persistTask(task);
-}
+          const exhausted =
+            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
 
-        } catch (error) {
           task.status =
-            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS
-              ? "failed"
-              : "queued";
+            permanentError || exhausted ? "failed" : "queued";
 
-          task.lastError =
-            error.message || "Erreur pendant la reprise automatique.";
+          task.lastError = errorMessage;
+
+          if (task.status === "queued") {
+            const delayMinutes = Math.pow(2, task.attempts);
+            task.nextRetryAt = new Date(
+              Date.now() + delayMinutes * 60 * 1000
+            ).toISOString();
+          } else {
+            task.nextRetryAt = null;
+          }
 
           await persistTask(task);
-        } finally {
-          activeRetries.delete(id);
+        } else {
+          task.videoId = result.videoId || task.videoId || null;
+          task.status = "processing";
+          task.lastError = null;
+          task.nextRetryAt = null;
+
+          await persistTask(task);
         }
+      } catch (error) {
+        const exhausted =
+          task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
+
+        task.status = exhausted ? "failed" : "queued";
+        task.lastError =
+          error.message || "Erreur pendant la reprise automatique.";
+
+        if (!exhausted) {
+          const delayMinutes = Math.pow(2, task.attempts);
+          task.nextRetryAt = new Date(
+            Date.now() + delayMinutes * 60 * 1000
+          ).toISOString();
+        } else {
+          task.nextRetryAt = null;
+        }
+
+        await persistTask(task);
+      } finally {
+        activeRetries.delete(id);
       }
-    } catch (error) {
-      console.error(
-        "Bot de reprise automatique :",
-        error.message
-      );
-    } finally {
-      recoveryWorkerRunning = false;
     }
+  } catch (error) {
+    console.error(
+      "Bot de reprise automatique :",
+      error.message
+    );
+  } finally {
+    recoveryWorkerRunning = false;
   }
+            }
 
   // Démarrer une vérification au lancement, puis toutes les minutes.
   queueTableReady
