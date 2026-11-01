@@ -6206,7 +6206,7 @@ button.primary:hover,
     </div>
     <span id="jarvisStatus" class="jarvis-status">PRÊT</span>
   </div>
-
+<button onclick="jarvisLogin()">Connexion JARVIS</button>
   <div class="jarvis-core-wrap">
     <div class="jarvis-ring jarvis-ring-one"></div>
     <div class="jarvis-ring jarvis-ring-two"></div>
@@ -9037,7 +9037,37 @@ function jarvisSetVisualState(state) {
   }
 }
 
+/* CONNEXION CINEFLOW POUR JARVIS */
 
+async function jarvisLogin() {
+  const email = prompt("Adresse e-mail de ton compte Cineflow :");
+  if (!email) return;
+
+  const password = prompt("Mot de passe Cineflow :");
+  if (!password) return;
+
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.token) {
+      alert(data.message || "Connexion impossible.");
+      return;
+    }
+
+    sessionStorage.setItem("cineflow_token", data.token);
+    alert("Connexion Cineflow réussie. JARVIS peut utiliser ElevenLabs.");
+  } catch (error) {
+    alert("Erreur de connexion au serveur Cineflow.");
+  }
+}
 /* JARVIS — ElevenLabs avec secours navigateur */
 
 let jarvisAudio = null;
@@ -9068,12 +9098,20 @@ async function jarvisSpeak(text) {
       : "fr";
 
   try {
+        const token = sessionStorage.getItem("cineflow_token");
+
+    if (!token) {
+      jarvisSpeakFallback(message);
+      console.warn("Connecte-toi à Cineflow pour utiliser ElevenLabs.");
+      return;
+    }
+
     const response = await fetch("/api/jarvis/tts", {
       method: "POST",
       headers: {
-  "Content-Type": "application/json",
-  "Authorization": "Bearer " + token
-},
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
       body: JSON.stringify({
         text: message,
         language
