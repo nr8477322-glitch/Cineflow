@@ -677,147 +677,60 @@ async function saveImageToDatabase(imageId, image) {
       );
     }
 
-  async function processRecoveryQueue() {
-  if (recoveryWorkerRunning) return;
+    await pool.query(
+      `INSERT INTO cineflow_images
+        (
+          id,
+          project_id,
+          scene_number,
+          mime_type,
+          data,
+          imagekit_url,
+          imagekit_file_id,
+          updated_at
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         project_id = EXCLUDED.project_id,
+         scene_number = EXCLUDED.scene_number,
+         mime_type = EXCLUDED.mime_type,
+         data = EXCLUDED.data,
+         imagekit_url = COALESCE(
+           EXCLUDED.imagekit_url,
+           cineflow_images.imagekit_url
+         ),
+         imagekit_file_id = COALESCE(
+           EXCLUDED.imagekit_file_id,
+           cineflow_images.imagekit_file_id
+         ),
+         updated_at = NOW()`,
+      [
+        imageId,
+        image.projectId,
+        Number(image.scene) || null,
+        image.mimeType || "image/png",
+        image.data,
+        imageKitResult?.url || image.imagekitUrl || null,
+        imageKitResult?.fileId || image.imagekitFileId || null
+      ]
+    );
 
-  recoveryWorkerRunning = true;
-
-  try {
-    const persistent = await queueTableReady;
-
-    if (persistent) {
-      const result = await pool.query(
-        `SELECT data
-         FROM cineflow_recovery_queue
-         WHERE status IN ('queued', 'processing')
-         ORDER BY updated_at ASC`
-      );
-
-      for (const row of result.rows) {
-        if (row.data?.id) {
-          recoveryQueue.set(row.data.id, row.data);
-        }
-      }
-
-      await recoverStaleTasks();
+    // Conserve également les références en mémoire.
+    if (imageKitResult) {
+      image.imagekitUrl = imageKitResult.url;
+      image.imagekitFileId = imageKitResult.fileId;
     }
 
-    if (typeof retryScene !== "function") {
-      console.error(
-        "Bot de reprise : retryScene n'est pas connecté."
-      );
-      return;
-    }
-
-    const pendingTasks = Array.from(recoveryQueue.values())
-      .filter(task => task && task.status === "queued")
-      .sort((a, b) =>
-        Date.parse(a.createdAt || 0) -
-        Date.parse(b.createdAt || 0)
-      );
-
-    for (const task of pendingTasks) {
-      const id = task.id;
-
-      if (activeRetries.has(id)) continue;
-      if (recoveryQueue.get(id)?.status !== "queued") continue;
-
-      // Respecter le délai avant la prochaine tentative.
-      const nextRetryAt = Date.parse(task.nextRetryAt || "");
-
-      if (Number.isFinite(nextRetryAt) && Date.now() < nextRetryAt) {
-        continue;
-      }
-
-      if (Number(task.attempts || 0) >= MAX_AUTO_RECOVERY_ATTEMPTS) {
-        task.status = "failed";
-        task.lastError =
-          task.lastError || "Nombre maximal de tentatives atteint.";
-
-        await persistTask(task);
-        continue;
-      }
-
-      activeRetries.add(id);
-
-      task.status = "processing";
-      task.attempts = Number(task.attempts || 0) + 1;
-      task.lastRetryRequestedAt = timestamp();
-
-      await persistTask(task);
-
-      try {
-        const result = await retryScene(
-          task.projectId,
-          task.sceneNumber,
-          task
-        );
-
-        if (!result || result.success !== true) {
-          const errorMessage =
-            result?.error || "La relance automatique a échoué.";
-
-          const permanentError =
-            result?.permanent === true;
-
-          const exhausted =
-            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
-
-          task.status =
-            permanentError || exhausted ? "failed" : "queued";
-
-          task.lastError = errorMessage;
-
-          if (task.status === "queued") {
-            const delayMinutes = Math.pow(2, task.attempts);
-            task.nextRetryAt = new Date(
-              Date.now() + delayMinutes * 60 * 1000
-            ).toISOString();
-          } else {
-            task.nextRetryAt = null;
-          }
-
-          await persistTask(task);
-        } else {
-          task.videoId = result.videoId || task.videoId || null;
-          task.status = "processing";
-          task.lastError = null;
-          task.nextRetryAt = null;
-
-          await persistTask(task);
-        }
-      } catch (error) {
-        const exhausted =
-          task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
-
-        task.status = exhausted ? "failed" : "queued";
-        task.lastError =
-          error.message || "Erreur pendant la reprise automatique.";
-
-        if (!exhausted) {
-          const delayMinutes = Math.pow(2, task.attempts);
-          task.nextRetryAt = new Date(
-            Date.now() + delayMinutes * 60 * 1000
-          ).toISOString();
-        } else {
-          task.nextRetryAt = null;
-        }
-
-        await persistTask(task);
-      } finally {
-        activeRetries.delete(id);
-      }
-    }
+    return true;
   } catch (error) {
     console.error(
-      "Bot de reprise automatique :",
+      "Erreur de sauvegarde image Neon :",
       error.message
     );
-  } finally {
-    recoveryWorkerRunning = false;
-  }
-  }
 
+    return false;
+  }
+}
 const platformStats = {
   youtube: {
     connected: false,
