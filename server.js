@@ -677,120 +677,146 @@ async function saveImageToDatabase(imageId, image) {
       );
     }
 
-    await pool.query(
-      `INSERT INTO cineflow_images
-        (
-          id,
-          project_id,
-          scene_number,
-          mime_type,
-          data,
-          imagekit_url,
-          imagekit_file_id,
-          updated_at
-        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-       ON CONFLICT (id) DO UPDATE SET
-         project_id = EXCLUDED.project_id,
-         scene_number = EXCLUDED.scene_number,
-         mime_type = EXCLUDED.mime_type,
-         data = EXCLUDED.data,
-         imagekit_url = COALESCE(
-           EXCLUDED.imagekit_url,
-           cineflow_images.imagekit_url
-         ),
-         imagekit_file_id = COALESCE(
-           EXCLUDED.imagekit_file_id,
-           cineflow_images.imagekit_file_id
-         ),
-         updated_at = NOW()`,
-      [
-        imageId,
-        image.projectId,
-        Number(image.scene) || null,
-        image.mimeType || "image/png",
-        image.data,
-        imageKitResult?.url || image.imagekitUrl || null,
-        imageKitResult?.fileId || image.imagekitFileId || null
-      ]
-    );
+  async function processRecoveryQueue() {
+  if (recoveryWorkerRunning) return;
 
-    // Conserve également les références en mémoire.
-    if (imageKitResult) {
-      image.imagekitUrl = imageKitResult.url;
-      image.imagekitFileId = imageKitResult.fileId;
-    }
-
-    return true;
-  } catch (error) {
-    console.error(
-      "Erreur de sauvegarde image Neon :",
-      error.message
-    );
-
-    return false;
-  }
-}
-async function loadImageFromDatabase(imageId) {
-  if (!pool || !imageId) return null;
+  recoveryWorkerRunning = true;
 
   try {
-    const ready = await databaseReady;
-    if (!ready) return null;
+    const persistent = await queueTableReady;
 
-    const result = await pool.query(
-      `SELECT
-         id,
-         project_id,
-         scene_number,
-         mime_type,
-         data,
-         imagekit_url,
-         imagekit_file_id
-       FROM cineflow_images
-       WHERE id = $1
-       LIMIT 1`,
-      [imageId]
-    );
+    if (persistent) {
+      const result = await pool.query(
+        `SELECT data
+         FROM cineflow_recovery_queue
+         WHERE status IN ('queued', 'processing')
+         ORDER BY updated_at ASC`
+      );
 
-    if (!result.rows.length) return null;
+      for (const row of result.rows) {
+        if (row.data?.id) {
+          recoveryQueue.set(row.data.id, row.data);
+        }
+      }
 
-    const row = result.rows[0];
+      await recoverStaleTasks();
+    }
 
-    const image = {
-      id: row.id,
-      projectId: row.project_id,
-      scene: row.scene_number,
-      mimeType: row.mime_type || "image/png",
-      data: row.data,
-      imagekitUrl: row.imagekit_url || null,
-      imagekitFileId: row.imagekit_file_id || null
-    };
+    if (typeof retryScene !== "function") {
+      console.error(
+        "Bot de reprise : retryScene n'est pas connecté."
+      );
+      return;
+    }
 
-    generatedImages.set(imageId, image);
+    const pendingTasks = Array.from(recoveryQueue.values())
+      .filter(task => task && task.status === "queued")
+      .sort((a, b) =>
+        Date.parse(a.createdAt || 0) -
+        Date.parse(b.createdAt || 0)
+      );
 
-    return image;
+    for (const task of pendingTasks) {
+      const id = task.id;
+
+      if (activeRetries.has(id)) continue;
+      if (recoveryQueue.get(id)?.status !== "queued") continue;
+
+      // Respecter le délai avant la prochaine tentative.
+      const nextRetryAt = Date.parse(task.nextRetryAt || "");
+
+      if (Number.isFinite(nextRetryAt) && Date.now() < nextRetryAt) {
+        continue;
+      }
+
+      if (Number(task.attempts || 0) >= MAX_AUTO_RECOVERY_ATTEMPTS) {
+        task.status = "failed";
+        task.lastError =
+          task.lastError || "Nombre maximal de tentatives atteint.";
+
+        await persistTask(task);
+        continue;
+      }
+
+      activeRetries.add(id);
+
+      task.status = "processing";
+      task.attempts = Number(task.attempts || 0) + 1;
+      task.lastRetryRequestedAt = timestamp();
+
+      await persistTask(task);
+
+      try {
+        const result = await retryScene(
+          task.projectId,
+          task.sceneNumber,
+          task
+        );
+
+        if (!result || result.success !== true) {
+          const errorMessage =
+            result?.error || "La relance automatique a échoué.";
+
+          const permanentError =
+            result?.permanent === true;
+
+          const exhausted =
+            task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
+
+          task.status =
+            permanentError || exhausted ? "failed" : "queued";
+
+          task.lastError = errorMessage;
+
+          if (task.status === "queued") {
+            const delayMinutes = Math.pow(2, task.attempts);
+            task.nextRetryAt = new Date(
+              Date.now() + delayMinutes * 60 * 1000
+            ).toISOString();
+          } else {
+            task.nextRetryAt = null;
+          }
+
+          await persistTask(task);
+        } else {
+          task.videoId = result.videoId || task.videoId || null;
+          task.status = "processing";
+          task.lastError = null;
+          task.nextRetryAt = null;
+
+          await persistTask(task);
+        }
+      } catch (error) {
+        const exhausted =
+          task.attempts >= MAX_AUTO_RECOVERY_ATTEMPTS;
+
+        task.status = exhausted ? "failed" : "queued";
+        task.lastError =
+          error.message || "Erreur pendant la reprise automatique.";
+
+        if (!exhausted) {
+          const delayMinutes = Math.pow(2, task.attempts);
+          task.nextRetryAt = new Date(
+            Date.now() + delayMinutes * 60 * 1000
+          ).toISOString();
+        } else {
+          task.nextRetryAt = null;
+        }
+
+        await persistTask(task);
+      } finally {
+        activeRetries.delete(id);
+      }
+    }
   } catch (error) {
     console.error(
-      "Erreur de récupération image Neon :",
+      "Bot de reprise automatique :",
       error.message
     );
-
-    return null;
+  } finally {
+    recoveryWorkerRunning = false;
   }
-}
-  async function getImageData(imageId) {
-  const image = generatedImages.get(imageId);
-
-  if (image?.data) return image;
-
-  return await loadImageFromDatabase(imageId);
   }
-const accounts = {
-  youtube: false,
-  tiktok: false,
-  instagram: false
-};
 
 const platformStats = {
   youtube: {
