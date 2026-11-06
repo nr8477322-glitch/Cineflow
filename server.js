@@ -906,100 +906,99 @@ function makeId(prefix) {
     Math.random().toString(36).slice(2, 8)
   );
 }
-async function followVideoOperation(
-  videoId
-) {
-  const video =
-    generatedVideos.get(videoId);
+
+async function followVideoOperation(videoId) {
+  const video = generatedVideos.get(videoId);
 
   if (!video) {
+    console.error("Suivi Veo : vidéo introuvable :", videoId);
     return;
   }
 
   try {
-    let operation =
-      video.operation;
+    let operation = video.operation;
 
-    console.log(
-      `⏳ Suivi Veo scène ${video.scene}...`
-    );
+    if (!operation) {
+      throw new Error("Opération Veo introuvable.");
+    }
+
+    console.log(`Suivi Veo scène ${video.scene}...`);
 
     while (!operation.done) {
-      await new Promise(
-        (resolve) =>
-          setTimeout(resolve, 10000)
-      );
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
-      operation =
-        await ai.operations.getVideosOperation({
-          operation
-        });
+      operation = await ai.operations.getVideosOperation({
+        operation
+      });
 
-      video.operation =
-        operation;
-
-      generatedVideos.set(
-        videoId,
-        video
-      );
-
-      console.log(
-        `⏳ Scène ${video.scene}: ${
-          operation.done
-            ? "terminée"
-            : "encore en cours"
-        }`
-      );
+      video.operation = operation;
+      generatedVideos.set(videoId, video);
     }
 
     if (operation.error) {
       throw new Error(
-        operation.error.message ||
-        "Veo a échoué."
+        operation.error.message || "Veo a échoué."
       );
     }
 
     const generatedVideo =
-      operation.response
-        ?.generatedVideos?.[0];
+      operation.response?.generatedVideos?.[0];
 
-    if (
-      !generatedVideo ||
-      !generatedVideo.video
-    ) {
+    if (!generatedVideo?.video) {
       throw new Error(
-        "Veo a terminé mais aucune vidéo n'a été retournée."
+        "Veo a terminé sans retourner de vidéo."
       );
     }
 
-    const outputPath =
-      path.join(
-        os.tmpdir(),
-        `${videoId}.mp4`
-      );
+    const outputPath = path.join(
+      os.tmpdir(),
+      `${videoId}.mp4`
+    );
 
     await ai.files.download({
-      file:
-        generatedVideo.video,
-
-      downloadPath:
-        outputPath
+      file: generatedVideo.video,
+      downloadPath: outputPath
     });
 
-   
+    if (!fs.existsSync(outputPath)) {
+      throw new Error("Le fichier vidéo téléchargé est introuvable.");
+    }
+
     video.status = "ready";
     video.filePath = outputPath;
+    video.provider = "veo";
     video.operation = operation;
 
     generatedVideos.set(videoId, video);
 
-    const project = projects.find(
-      (item) => item.id === video.projectId
+    // Retrouver le projet en mémoire ou dans Neon.
+    let project = projects.find(
+      item => item.id === video.projectId
     );
 
-    if (project && Array.isArray(project.videos)) {
-      const projectVideo = project.videos.find(
-        (item) => item.id === videoId
+    if (!project && pool) {
+      const ready = await databaseReady;
+
+      if (ready) {
+        const result = await pool.query(
+          `SELECT data
+           FROM cineflow_projects
+           WHERE id = $1
+           LIMIT 1`,
+          [video.projectId]
+        );
+
+        project = result.rows[0]?.data || null;
+
+        if (project) {
+          projects.unshift(project);
+        }
+      }
+    }
+
+    if (project) {
+      const projectVideo = (project.videos || []).find(
+        item => item.id === videoId
       );
 
       if (projectVideo) {
@@ -1008,50 +1007,94 @@ async function followVideoOperation(
         projectVideo.provider = "veo";
       }
 
-      try {
-        await saveProjectToDatabase(project);
-      } catch (saveError) {
-        console.error(
-          "Vidéo prête, mais sauvegarde du projet échouée :",
-          saveError.message
-        );
-      }
+      await saveProjectToDatabase(project);
+    } else {
+      console.error(
+        "Veo terminé, mais le projet reste introuvable :",
+        video.projectId
+      );
+    }
 
+    // Clôturer la tâche même si le projet n'a pas été retrouvé.
+    if (botsRouter?.updateRecoveryTask) {
+      await botsRouter.updateRecoveryTask({
+        projectId: video.projectId,
+        sceneNumber: Number(video.scene),
+        status: "completed",
+        videoId
+      });
+    }
+
+    console.log(
+      `Vidéo Veo scène ${video.scene} terminée : ${outputPath}`
+    );
+
+  } catch (error) {
+    video.status = "error";
+    video.error = error.message || "Erreur Veo inconnue.";
+
+    generatedVideos.set(videoId, video);
+
+    let project = projects.find(
+      item => item.id === video.projectId
+    );
+
+    if (!project && pool) {
       try {
-        if (botsRouter?.updateRecoveryTask) {
-          await botsRouter.updateRecoveryTask({
-            projectId: project.id,
-            sceneNumber: Number(video.scene),
-            status: "completed",
-            videoId
-          });
+        const ready = await databaseReady;
+
+        if (ready) {
+          const result = await pool.query(
+            `SELECT data
+             FROM cineflow_projects
+             WHERE id = $1
+             LIMIT 1`,
+            [video.projectId]
+          );
+
+          project = result.rows[0]?.data || null;
+
+          if (project) {
+            projects.unshift(project);
+          }
         }
-      } catch (queueError) {
+      } catch (loadError) {
         console.error(
-          "Vidéo prête, mais mise à jour de la file échouée :",
-          queueError.message
+          "Récupération du projet après erreur :",
+          loadError.message
         );
       }
     }
 
-    console.log(
-      `✅ MP4 scène ${video.scene} sauvegardé : ${outputPath}`
+    if (project) {
+      const projectVideo = (project.videos || []).find(
+        item => item.id === videoId
+      );
+
+      if (projectVideo) {
+        projectVideo.status = "error";
+        projectVideo.error = video.error;
+      }
+
+      await saveProjectToDatabase(project);
+    }
+
+    if (botsRouter?.enqueueRecoveryTask) {
+      await botsRouter.enqueueRecoveryTask({
+        projectId: video.projectId,
+        sceneNumber: Number(video.scene),
+        videoId,
+        error: video.error
+      });
+    }
+
+    console.error(
+      `Erreur Veo scène ${video.scene} :`,
+      video.error
     );
+  }
+}
 
-} catch (error) {
-  video.status = "error";
-  video.error = error.message || "Erreur Veo inconnue.";
-
-  generatedVideos.set(videoId, video);
-
-  const project = projects.find(
-    item => item.id === video.projectId
-  );
-
-  if (project) {
-    const projectVideo = project.videos?.find(
-      item => item.id === videoId
-    );
 
     if (projectVideo) {
       projectVideo.status = "error";
