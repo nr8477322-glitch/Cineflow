@@ -1095,30 +1095,6 @@ async function followVideoOperation(videoId) {
   }
 }
 
-
-    if (projectVideo) {
-      projectVideo.status = "error";
-      projectVideo.error = video.error;
-    }
-
-    await saveProjectToDatabase(project);
-  }
-
-  if (botsRouter?.enqueueRecoveryTask) {
-    await botsRouter.enqueueRecoveryTask({
-      projectId: video.projectId,
-      sceneNumber: Number(video.scene),
-      videoId,
-      error: video.error
-    });
-  }
-
-  console.error(
-    `❌ Erreur vidéo scène ${video.scene}:`,
-    video.error
-  );
-  }
-        }
 function cleanJson(text) {
   if (!text) return null;
 
