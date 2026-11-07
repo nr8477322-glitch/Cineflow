@@ -1,10 +1,10 @@
 import os
-from uuid import uuid4
+from uuid import uuid
 
 from fastapi import FastAPI, HTTPException
 
 from schemas import MotionJobRequest, MotionJobResponse
-from engine import generate_video, MotionEngineError
+from motion_pipeline import generate_video, MotionPipelineError
 
 app = FastAPI(
     title="Cineflow Motion Worker",
@@ -33,19 +33,6 @@ def generate_motion(request: MotionJobRequest):
 
     job_id = str(uuid4())
 
-    # Mode prototype si aucun moteur n'est configuré
-    if not os.getenv("MOTION_ENGINE_URL"):
-        return MotionJobResponse(
-            job_id=job_id,
-            status="planned",
-            message=(
-                "Demande reçue. Aucun moteur vidéo n'est configuré. "
-                "Aucune vidéo n'a été générée."
-            ),
-            video_url=None
-        )
-
-    # Appel du moteur vidéo externe
     try:
         result = generate_video(
             image_url=request.image_url,
@@ -57,15 +44,12 @@ def generate_motion(request: MotionJobRequest):
         return MotionJobResponse(
             job_id=str(result.get("job_id", job_id)),
             status=str(result.get("status", "processing")),
-            message=str(result.get("message", "Demande transmise au moteur vidéo.")),
+            message=str(result.get("message", "Génération locale lancée.")),
             video_url=result.get("video_url")
         )
 
-    except MotionEngineError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=str(exc)
-        )
+    except MotionPipelineError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.get("/")
