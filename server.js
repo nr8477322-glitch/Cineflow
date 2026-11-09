@@ -133,6 +133,33 @@ await pool.query(`
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
 `);
+      await pool.query(`
+  CREATE TABLE IF NOT EXISTS cineflow_social_accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES cineflow_users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL CHECK (
+      platform IN ('youtube', 'tiktok', 'instagram', 'facebook')
+    ),
+    external_account_id TEXT,
+    account_name TEXT,
+    access_token_encrypted TEXT NOT NULL,
+    refresh_token_encrypted TEXT,
+    token_expires_at TIMESTAMPTZ,
+    scopes TEXT[] NOT NULL DEFAULT '{}',
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, platform)
+  )
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS cineflow_oauth_states (
+    state_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES cineflow_users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL
+  )
+`);  
         console.log("Neon : tables prêtes.");
         return true;
       } catch (error) {
