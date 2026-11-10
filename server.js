@@ -11,7 +11,7 @@ const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const crypto = require("crypto");
+
 function getOAuthEncryptionKey() {
   const key = process.env.OAUTH_ENCRYPTION_KEY;
 
