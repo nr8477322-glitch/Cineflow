@@ -11,7 +11,7 @@ const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-
+const crypto = require("crypto");
 function getOAuthEncryptionKey() {
   const key = process.env.OAUTH_ENCRYPTION_KEY;
 
@@ -68,7 +68,79 @@ const pool = process.env.DATABASE_URL
       ssl: { rejectUnauthorized: false }
     })
   : null;
+// ============================================
+// CINEFLOW - OAUTH TOKEN ENCRYPTION
+// ============================================
 
+function getOAuthEncryptionKey() {
+  const value = process.env.OAUTH_ENCRYPTION_KEY;
+
+  if (!value || !/^[a-fA-F0-9]{64}$/.test(value)) {
+    throw new Error("OAUTH_ENCRYPTION_KEY must contain 64 hexadecimal characters");
+  }
+
+  return Buffer.from(value, "hex");
+}
+
+function encryptOAuthToken(token) {
+  if (typeof token !== "string" || !token.length) {
+    throw new Error("Invalid OAuth token");
+  }
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    getOAuthEncryptionKey(),
+    iv
+  );
+
+  const encrypted = Buffer.concat([
+    cipher.update(token, "utf8"),
+    cipher.final()
+  ]);
+
+  return [
+    "v1",
+    iv.toString("hex"),
+    cipher.getAuthTag().toString("hex"),
+    encrypted.toString("hex")
+  ].join(":");
+}
+
+function decryptOAuthToken(payload) {
+  if (typeof payload !== "string") {
+    throw new Error("Invalid encrypted token");
+  }
+
+  const parts = payload.split(":");
+
+  if (parts.length !== 4 || parts[0] !== "v1") {
+    throw new Error("Invalid encrypted token format");
+  }
+
+  const [, ivHex, tagHex, encryptedHex] = parts;
+
+  if (
+    !/^[a-f0-9]{24}$/i.test(ivHex) ||
+    !/^[a-f0-9]{32}$/i.test(tagHex) ||
+    !/^(?:[a-f0-9]{2})+$/i.test(encryptedHex)
+  ) {
+    throw new Error("Invalid encrypted token data");
+  }
+
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    getOAuthEncryptionKey(),
+    Buffer.from(ivHex, "hex")
+  );
+
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedHex, "hex")),
+    decipher.final()
+  ]).toString("utf8");
+}
 
 const databaseReady = pool
   ? (async () => {
