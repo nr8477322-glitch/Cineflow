@@ -4086,44 +4086,83 @@ app.post(
    ACCOUNTS
 ========================================================= */
 
+/* =========================================================
+   ACCOUNTS - AUTHENTICATED NEON STORAGE
+========================================================= */
+
 app.get(
   "/api/accounts",
-  (req, res) => {
-    res.json({
-      success: true,
-      accounts
-    });
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!pool || !databaseReady) {
+        return res.status(503).json({
+          success: false,
+          error: "Base de données indisponible."
+        });
+      }
+
+      await databaseReady;
+
+      const result = await pool.query(
+        `SELECT platform, account_name, connected_at
+         FROM cineflow_social_accounts
+         WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      const userAccounts = {
+        youtube: false,
+        tiktok: false,
+        instagram: false,
+        facebook: false
+      };
+
+      for (const account of result.rows) {
+        userAccounts[account.platform] = true;
+      }
+
+      return res.json({
+        success: true,
+        accounts: userAccounts,
+        details: result.rows
+      });
+
+    } catch (error) {
+      console.error("ACCOUNTS LOAD ERROR:", error.message);
+
+      return res.status(500).json({
+        success: false,
+        error: "Impossible de charger les comptes."
+      });
+    }
   }
 );
 
 app.post(
   "/api/accounts/connect",
-  (req, res) => {
-    const platform =
-      req.body.platform;
+  requireAuth,
+  async (req, res) => {
+    const platform = req.body?.platform;
 
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        accounts,
-        platform
-      )
-    ) {
+    const allowedPlatforms = [
+      "youtube",
+      "tiktok",
+      "instagram",
+      "facebook"
+    ];
+
+    if (!allowedPlatforms.includes(platform)) {
       return res.status(400).json({
-        error:
-          "Plateforme inconnue."
+        success: false,
+        error: "Plateforme inconnue."
       });
     }
 
-    accounts[platform] = true;
-
-    platformStats[platform].connected =
-      true;
-
-    res.json({
-      success: true,
-      accounts,
-      stats:
-        platformStats
+    return res.status(409).json({
+      success: false,
+      error: "La connexion OAuth de cette plateforme n'est pas encore configurée.",
+      platform
     });
   }
 );
