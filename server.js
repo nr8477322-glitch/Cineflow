@@ -10,6 +10,58 @@ const { execFile } = require("child_process");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+
+function getOAuthEncryptionKey() {
+  const key = process.env.OAUTH_ENCRYPTION_KEY;
+
+  if (!key || !/^[a-f0-9]{64}$/i.test(key)) {
+    throw new Error("OAUTH_ENCRYPTION_KEY invalide ou absente");
+  }
+
+  return Buffer.from(key, "hex");
+}
+
+function encryptOAuthToken(token) {
+  if (typeof token !== "string" || !token) {
+    throw new Error("Jeton OAuth invalide");
+  }
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    getOAuthEncryptionKey(),
+    iv
+  );
+
+  const encrypted = Buffer.concat([
+    cipher.update(token, "utf8"),
+    cipher.final()
+  ]);
+
+  return [
+    iv.toString("hex"),
+    cipher.getAuthTag().toString("hex"),
+    encrypted.toString("hex")
+  ].join(":");
+}
+
+function decryptOAuthToken(value) {
+  const [ivHex, tagHex, encryptedHex] = value.split(":");
+
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    getOAuthEncryptionKey(),
+    Buffer.from(ivHex, "hex")
+  );
+
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedHex, "hex")),
+    decipher.final()
+  ]).toString("utf8");
+}
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
