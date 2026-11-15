@@ -1772,18 +1772,19 @@ app.get("/api/magic-hour/preview/:id", (req, res) => {
 
   return res.sendFile(video.filePath);
 });
-// JARVIS — synthèse vocale ElevenLabs
+
+// JARVIS — synthèse vocale Azure AI Speech
 const jarvisTtsRequests = new Map();
 
 app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
   try {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+    const apiKey = process.env.AZURE_SPEECH_KEY;
+    const region = process.env.AZURE_SPEECH_REGION;
 
-    if (!apiKey || !voiceId) {
+    if (!apiKey || !region) {
       return res.status(503).json({
         success: false,
-        error: "Configuration ElevenLabs incomplète."
+        error: "Configuration Azure Speech incomplète."
       });
     }
 
@@ -1800,7 +1801,6 @@ app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
     const now = Date.now();
     const ip = req.ip;
     const previous = jarvisTtsRequests.get(ip) || [];
-
     const recent = previous.filter(time => now - time < 60000);
 
     if (recent.length >= 15) {
@@ -1813,36 +1813,50 @@ app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
     recent.push(now);
     jarvisTtsRequests.set(ip, recent);
 
+    // Protection du texte pour l'intégration SSML/XML
+    const escapeXml = value => String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+    const voice = language === "en"
+      ? "en-US-GuyNeural"
+      : "fr-FR-HenriNeural";
+
+    const locale = language === "en" ? "en-US" : "fr-FR";
+
+    const ssml = `
+      <speak version="1.0"
+        xmlns="http://www.w3.org/2001/10/synthesis"
+        xml:lang="${locale}">
+        <voice name="${voice}">
+          ${escapeXml(text)}
+        </voice>
+      </speak>
+    `;
+
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`,
       {
         method: "POST",
         headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-          "Accept": "audio/mpeg"
+          "Ocp-Apim-Subscription-Key": apiKey,
+          "Content-Type": "application/ssml+xml",
+          "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3"
         },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_multilingual_v2",
-          language_code: language,
-          voice_settings: {
-            stability: 0.65,
-            similarity_boost: 0.8,
-            style: 0.35,
-            use_speaker_boost: true
-          }
-        })
+        body: ssml
       }
     );
 
     if (!response.ok) {
       const detail = await response.text();
-      console.error("ElevenLabs:", response.status, detail);
+      console.error("Azure Speech:", response.status, detail);
 
       return res.status(502).json({
         success: false,
-        error: "ElevenLabs n'a pas pu générer la voix."
+        error: "Azure Speech n'a pas pu générer la voix."
       });
     }
 
@@ -1850,10 +1864,11 @@ app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
 
     res.set("Content-Type", "audio/mpeg");
     res.set("Cache-Control", "no-store");
+
     return res.send(audio);
 
   } catch (error) {
-    console.error("Erreur JARVIS ElevenLabs:", error.message);
+    console.error("Erreur JARVIS Azure Speech:", error.message);
 
     return res.status(500).json({
       success: false,
@@ -1861,7 +1876,7 @@ app.post("/api/jarvis/tts", requireAuth, async (req, res) => {
     });
   }
 });
-app.post("/api/tts/test-scene", async (req, res) => {
+("/api/tts/test-scene", async (req, res) => {
   try {
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
