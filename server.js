@@ -4082,6 +4082,7 @@ app.post(
   }
 );
 
+
 /* =========================================================
    ACCOUNTS - AUTHENTICATED NEON STORAGE
 ========================================================= */
@@ -4098,7 +4099,14 @@ app.get(
         });
       }
 
-      await databaseReady;
+      const dbReady = await databaseReady;
+
+      if (dbReady === false) {
+        return res.status(503).json({
+          success: false,
+          error: "Base de données indisponible."
+        });
+      }
 
       const result = await pool.query(
         `SELECT platform, account_name, connected_at
@@ -4162,6 +4170,7 @@ app.post(
     });
   }
 );
+
 
 /* =========================================================
    REVENUE
