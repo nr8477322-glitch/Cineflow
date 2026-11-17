@@ -8906,10 +8906,17 @@ async function loadAccounts(){
 
   try{
 
-    var response =
-      await fetch(
-        "/api/accounts"
-      );
+    const token = sessionStorage.getItem("cineflow_token");
+
+if (!token) {
+  throw new Error("Connecte-toi à Cineflow pour voir tes comptes.");
+}
+
+var response = await fetch("/api/accounts", {
+  headers: {
+    "Authorization": "Bearer " + token
+  }
+});
 
     var data =
       await response.json();
@@ -8937,7 +8944,11 @@ async function loadAccounts(){
         name:"TikTok",
         icon:"🎵"
       },
-
+{
+  key: "facebook",
+  name: "Facebook",
+  icon: "📘"
+},
       {
         key:"instagram",
         name:"Instagram",
